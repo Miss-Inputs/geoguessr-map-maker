@@ -203,17 +203,23 @@ async def find_locations_in_geometry(
 		):
 			yield loc
 	elif isinstance(geom, shapely.geometry.base.BaseMultipartGeometry):
-		# TODO: tqdm over each part mayhaps
-		async for loc in find_locations_in_geometry(
-			geom,
-			session,
-			radius,
-			allow_third_party=allow_third_party,
-			locale=locale,
-			options=options,
-			use_tqdm=use_tqdm,
+		for part in tqdm(
+			geom.geoms,
+			'Finding locations in multi-part geometry',
+			unit='part',
+			leave=False,
+			disable=not use_tqdm,
 		):
-			yield loc
+			async for loc in find_locations_in_geometry(
+				part,
+				session,
+				radius,
+				allow_third_party=allow_third_party,
+				locale=locale,
+				options=options,
+				use_tqdm=use_tqdm,
+			):
+				yield loc
 	# TODO: LineString (sample points along line)
 	else:
 		logger.warning('Unhandled geometry type: %s', geom.geom_type)

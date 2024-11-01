@@ -30,4 +30,4 @@ def geoguessr_region_map_to_geojson(map_json: str):
 	return geojson
 
 
-# TODO: Convert to DataFrame
+# TODO: Convert to GeoDataFrame
