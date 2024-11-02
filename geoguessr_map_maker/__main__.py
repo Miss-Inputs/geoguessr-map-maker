@@ -15,8 +15,9 @@ from .geodataframes import find_locations_in_geodataframe
 async def amain(
 	input_file: Path, output_file: Path | None = None, name_col: str | None = None, radius: int |None= None
 ):
-	print(input_file)
+	#TODO: Allow input_file to not actually be a filesystem path, because geopandas read_file can get URLs and that sort of thing
 	if output_file is None:
+		#TODO: Avoid clobbering output_file
 		output_file = input_file.with_suffix('.json')
 
 	gdf = geopandas.read_file(input_file)

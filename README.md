@@ -7,7 +7,6 @@ To run from command line use python -m geoguessr_map_maker {options}
 
 ## TODO
 - Convert GTFS stops to map
-- Avoid overwriting output_file if it was set by default and already exists
 - Use as_completed in loops (but ensure we limit connections to streetview)
 - Ability to resume from where it was stopped
 - Handle other CRSes (either project all GeoDataFrames to WGS84, or don't reproject frames that aren't that)
