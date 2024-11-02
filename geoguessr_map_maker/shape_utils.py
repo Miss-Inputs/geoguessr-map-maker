@@ -1,53 +1,53 @@
-from collections.abc import Iterator
+import logging
+from collections.abc import Collection
+from functools import partial
 
 import numpy
 import shapely
 import shapely.ops
 from pyproj import CRS, Transformer
 from pyproj.enums import TransformDirection
-from tqdm.auto import tqdm
+
+logger = logging.getLogger(__name__)
 
 wgs84 = CRS('wgs84')
 mercator = CRS('Web Mercator')
 wgs84_to_mercator = Transformer.from_crs(wgs84, mercator, always_xy=True)
+mercator_to_wgs84 = partial(wgs84_to_mercator.transform, direction=TransformDirection.INVERSE)
 
 
-def iter_coordinates_in_polygon(
+def get_polygon_lattice(
 	poly: shapely.Polygon | shapely.MultiPolygon | shapely.LinearRing,
 	resolution: float = 10,
 	*,
 	reproject: bool = True,
-	use_tqdm: bool = True,
-) -> Iterator[shapely.Point]:
-	"""Yields points from a grid covering a polygon
+) -> Collection[shapely.Point]:
+	"""Returns points from a grid covering a polygon
 
 	Parameters:
 		reproject: If true, temporarily projects to mercator to make the resolution consistent
 		resolution: Grid resolution in metres
 	"""
 	# TODO: Option to get random points instead
-	shapely.prepare(poly)
-	transformed = shapely.ops.transform(wgs84_to_mercator.transform, poly) if reproject else poly
-	shapely.prepare(transformed)
-	min_x, min_y, max_x, max_y = transformed.bounds
+	projected = shapely.ops.transform(wgs84_to_mercator.transform, poly) if reproject else poly
+	shapely.prepare(projected)
+	min_x, min_y, max_x, max_y = projected.bounds
 
 	x, y = numpy.meshgrid(
 		numpy.arange(min_x, max_x, resolution, dtype='float64'),
 		numpy.arange(min_y, max_y, resolution, dtype='float64'),
 	)
-	if reproject:
-		wgs_lng, wgs_lat = wgs84_to_mercator.transform(
-			x.flatten(), y.flatten(), direction=TransformDirection.INVERSE
-		)  # pylint: disable=unpacking-non-sequence #what?
-		points = shapely.points(wgs_lng, wgs_lat)
-	else:
-		points = shapely.points(x, y)
-	assert not isinstance(
-		points, shapely.Point
-	), 'points should not be a single Point, array was passed in'
+	points = shapely.MultiPoint(list(zip(x.flat, y.flat, strict=True)))
+	intersection = points.intersection(projected)
+	if intersection.is_empty:
+		# maybe this could happen if polygon is less than radius in either dimension
+		return (poly.representative_point(),)
 
-	for point in tqdm(
-		points, desc='Testing points', unit='point', leave=False, disable=not use_tqdm
-	):
-		if poly.contains(point):
-			yield point
+	if reproject:
+		intersection = shapely.ops.transform(mercator_to_wgs84, intersection)
+	if isinstance(intersection, shapely.MultiPoint):
+		return tuple(intersection.geoms)
+	if not isinstance(intersection, shapely.Point):
+		logger.info('Somehow the intersection was a %s, returning representative point')
+		return (poly.representative_point(),)
+	return (intersection,)

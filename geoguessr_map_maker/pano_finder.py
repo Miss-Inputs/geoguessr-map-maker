@@ -11,7 +11,7 @@ from streetlevel import streetview
 from tqdm import tqdm
 
 from .pano import camera_gen, has_building, is_intersection
-from .shape_utils import iter_coordinates_in_polygon
+from .shape_utils import get_polygon_lattice
 
 if TYPE_CHECKING:
 	from shapely.geometry.base import BaseGeometry
@@ -189,9 +189,7 @@ async def find_locations_in_geometry(
 		):
 			yield loc
 	elif isinstance(geom, (shapely.Polygon, shapely.MultiPolygon, shapely.LinearRing)):
-		points = iter_coordinates_in_polygon(geom, radius, use_tqdm=use_tqdm)
-		if use_tqdm:
-			points = tuple(points)
+		points = get_polygon_lattice(geom, radius)
 		async for loc in find_locations(
 			points,
 			session,

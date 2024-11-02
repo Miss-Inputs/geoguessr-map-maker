@@ -13,3 +13,4 @@ Under construction. If you are reading this it's not even remotely in a usable s
 - Handle other CRSes (either project all GeoDataFrames to WGS84, or don't reproject frames that aren't that)
 - (optionally) Discover locations via links
 - Keep track of rejected locations
+- Optionally use get_coverage_tile instead (which returns much less panos)
