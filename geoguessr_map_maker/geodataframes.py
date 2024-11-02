@@ -1,15 +1,12 @@
 import logging
 from collections.abc import Hashable
-from typing import TYPE_CHECKING, Any, cast
+from typing import TYPE_CHECKING, Any
 
-import numpy
 import shapely
 from shapely.geometry.base import BaseGeometry
 from tqdm.auto import tqdm
 
-from geoguessr_map_maker.coordinate import Coordinate
-
-from .geo_utils import get_bearing
+from .coordinate import Coordinate, pano_to_coordinate
 from .pano_finder import LocationOptions, find_location, find_locations_in_geometry
 
 if TYPE_CHECKING:
@@ -24,6 +21,7 @@ async def find_point(
 	lat: float,
 	lng: float,
 	radius: int = 20,
+	extra: dict[str, Any] | None = None,
 	*,
 	allow_third_party: bool = False,
 	return_original_point: bool = True,
@@ -39,18 +37,7 @@ async def find_point(
 	)
 	if not pano:
 		return None
-	return Coordinate(
-		lat if return_original_point else pano.lat,
-		lng if return_original_point else pano.lon,
-		pano.id,
-		# Pan the location towards whatever point we were originally looking at
-		cast(float, get_bearing(pano.lat, pano.lon, lat, lng, radians=False))
-		if return_original_point
-		else numpy.degrees(pano.heading),
-		pano.pitch,
-		None,
-		pano.country_code,
-	)
+	return pano_to_coordinate(pano, lat, lng, extra, return_original_point=return_original_point)
 
 
 async def find_locations_in_row(
@@ -71,12 +58,14 @@ async def find_locations_in_row(
 	if not isinstance(geometry, BaseGeometry):
 		logger.error('%s does not have geometry: %s', name or 'Row', row)
 		return
+	extra = row.drop(index='geometry').to_dict()
 
 	if isinstance(geometry, shapely.Point):
 		loc = await find_point(
 			geometry.y,
 			geometry.x,
 			radius,
+			extra,
 			allow_third_party=allow_third_party,
 			session=session,
 			return_original_point=return_original_point,
@@ -94,16 +83,7 @@ async def find_locations_in_row(
 			options=options,
 		):
 			# TODO: Do we always want to keep the original pano's heading/pitch? Or all of the row's data?
-			yield Coordinate(
-				pano.lat,
-				pano.lon,
-				pano.id,
-				pano.heading,
-				pano.pitch,
-				None,
-				pano.country_code,
-				row.drop('geometry').to_dict(),
-			)
+			yield pano_to_coordinate(pano, extra=extra, return_original_point=False)
 
 
 async def find_locations_in_geodataframe(
@@ -119,17 +99,7 @@ async def find_locations_in_geodataframe(
 	Parameters:
 		name_col: Column in gdf to use for displayng progress bars, logging, etc
 	"""
-	map_json: dict[str, Any] = {
-		# Not filling this in completely, as we create the map as a draft and then press the import button
-		# avatar: {background, decoration, ground, landscape}
-		# coordinates: gets filled in?
-		# 'created': datetime.now().isoformat(),
-		'customCoordinates': []
-		# description
-		# highlighted: false
-		# name
-	}
-
+	coords: list[Coordinate] = []
 	for index, row in (t := tqdm(gdf.iterrows(), 'Finding rows', unit='row')):
 		if name_col:
 			name = str(row.get(name_col, index))
@@ -143,6 +113,6 @@ async def find_locations_in_geodataframe(
 		)
 		locations = {location.pano_id: location async for location in found}
 		logger.info('Found %d locations in %s', len(locations), name)
-		map_json['customCoordinates'] += locations.values()
+		coords += locations.values()
 
-	return map_json
+	return coords

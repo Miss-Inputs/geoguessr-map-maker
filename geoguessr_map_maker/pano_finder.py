@@ -160,36 +160,6 @@ async def find_locations(
 		if pano:
 			yield pano
 
-
-async def find_locations_in_polygon(
-	poly: shapely.Polygon | shapely.MultiPolygon | shapely.LinearRing,
-	session: 'aiohttp.ClientSession',
-	radius: int = 10,
-	name: str | None = None,
-	*,
-	allow_third_party: bool = False,
-	locale: str = 'en',
-	options: LocationOptions | None = None,
-	use_tqdm: bool = True,
-):
-	points = get_polygon_lattice(poly, radius)
-	if not points:
-		logger.info('No points in %s, trying representative point instead', name or 'polygon')
-		points = (poly.representative_point(),)
-
-	async for loc in find_locations(
-		points,
-		session,
-		radius,
-		name,
-		locale=locale,
-		allow_third_party=allow_third_party,
-		options=options,
-		use_tqdm=use_tqdm,
-	):
-		yield loc
-
-
 async def find_locations_in_geometry(
 	geom: 'BaseGeometry',
 	session: 'aiohttp.ClientSession',
@@ -202,7 +172,7 @@ async def find_locations_in_geometry(
 	use_tqdm: bool = True,
 ) -> AsyncIterator[streetview.StreetViewPanorama]:
 	if isinstance(geom, shapely.Point):
-		loc = await find_location(
+		pano = await find_location(
 			geom,
 			session,
 			radius,
@@ -210,33 +180,10 @@ async def find_locations_in_geometry(
 			allow_third_party=allow_third_party,
 			options=options,
 		)
-		if loc:
-			yield loc
-	elif isinstance(geom, shapely.MultiPoint):
-		async for loc in find_locations(
-			geom.geoms,
-			session,
-			radius,
-			name,
-			locale=locale,
-			allow_third_party=allow_third_party,
-			options=options,
-			use_tqdm=use_tqdm,
-		):
-			yield loc
-	elif isinstance(geom, (shapely.Polygon, shapely.MultiPolygon, shapely.LinearRing)):
-		async for loc in find_locations_in_polygon(
-			geom,
-			session,
-			radius,
-			name,
-			allow_third_party=allow_third_party,
-			locale=locale,
-			options=options,
-			use_tqdm=use_tqdm,
-		):
-			yield loc
-	elif isinstance(geom, shapely.geometry.base.BaseMultipartGeometry):
+		if pano:
+			yield pano
+		return
+	if isinstance(geom, shapely.geometry.base.BaseMultipartGeometry):
 		for part in tqdm(
 			geom.geoms,
 			'Finding locations in multi-part geometry',
@@ -245,7 +192,7 @@ async def find_locations_in_geometry(
 			disable=not use_tqdm,
 			postfix={'name': name},
 		):
-			async for loc in find_locations_in_geometry(
+			async for pano in find_locations_in_geometry(
 				part,
 				session,
 				radius,
@@ -255,9 +202,31 @@ async def find_locations_in_geometry(
 				options=options,
 				use_tqdm=use_tqdm,
 			):
-				yield loc
-	# TODO: LineString (sample points along line)
+				yield pano
+		return
+
+	if isinstance(geom, shapely.MultiPoint):
+		points = geom.geoms
+	elif isinstance(geom, (shapely.Polygon, shapely.MultiPolygon, shapely.LinearRing)):
+		points = get_polygon_lattice(geom, radius)
+		if not points:
+			logger.info('No points in %s, trying representative point instead', name or 'polygon')
+			points = (geom.representative_point(),)
 	else:
 		logger.warning(
 			'Unhandled geometry type%s: %s', f' in {name}' if name else '', geom.geom_type
 		)
+		return
+
+	# TODO: LineString (sample points along line)
+	async for pano in find_locations(
+		points,
+		session,
+		radius,
+		name,
+		locale=locale,
+		allow_third_party=allow_third_party,
+		options=options,
+		use_tqdm=use_tqdm,
+	):
+		yield pano
