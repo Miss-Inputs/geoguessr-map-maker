@@ -73,7 +73,8 @@ not_building_place_types = (
 def is_intersection(pano: 'streetview.StreetViewPanorama'):
 	if not pano.street_names:
 		return False
-	return sum(len(label.angles) for label in pano.street_names) > 1
+	#_could_ have a 3-way intersection with only one label if both roads have the same name, but otherwise 2 of the same road label happens on straight sections of road
+	return len(pano.street_names) > 1 or len(pano.street_names[0].angles) > 2
 
 
 def max_image_size(pano: 'streetview.StreetViewPanorama'):
