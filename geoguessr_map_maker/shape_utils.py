@@ -41,13 +41,13 @@ def get_polygon_lattice(
 	intersection = points.intersection(projected)
 	if intersection.is_empty:
 		# maybe this could happen if polygon is less than radius in either dimension
-		return (poly.representative_point(),)
+		return ()
 
 	if reproject:
 		intersection = shapely.ops.transform(mercator_to_wgs84, intersection)
 	if isinstance(intersection, shapely.MultiPoint):
 		return tuple(intersection.geoms)
 	if not isinstance(intersection, shapely.Point):
-		logger.info('Somehow the intersection was a %s, returning representative point')
-		return (poly.representative_point(),)
+		logger.info('Somehow the intersection was a %s, returning empty list of points')
+		return ()
 	return (intersection,)

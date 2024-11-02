@@ -103,7 +103,7 @@ async def find_location(
 		point: Shapely Point object, or (latitude, longitude) tuple
 		session: Session to use for finding panoramas
 		locale: Locale to use for addresses etc in the returned panorama
-		pano_options: See `is_pano_wanted`
+		options: See `LocationOptions`
 	"""
 	if isinstance(point, shapely.Point):
 		return await find_location(
@@ -156,6 +156,33 @@ async def find_locations(
 			yield pano
 
 
+async def find_locations_in_polygon(
+	poly: shapely.Polygon | shapely.MultiPolygon | shapely.LinearRing,
+	session: 'aiohttp.ClientSession',
+	radius: int = 10,
+	*,
+	allow_third_party: bool = False,
+	locale: str = 'en',
+	options: LocationOptions | None = None,
+	use_tqdm: bool = True,
+):
+	points = get_polygon_lattice(poly, radius)
+	if not points:
+		logger.info('No points, trying representative point instead')
+		points = (poly.representative_point(),)
+
+	async for loc in find_locations(
+		points,
+		session,
+		radius,
+		locale=locale,
+		allow_third_party=allow_third_party,
+		options=options,
+		use_tqdm=use_tqdm,
+	):
+		yield loc
+
+
 async def find_locations_in_geometry(
 	geom: 'BaseGeometry',
 	session: 'aiohttp.ClientSession',
@@ -189,13 +216,12 @@ async def find_locations_in_geometry(
 		):
 			yield loc
 	elif isinstance(geom, (shapely.Polygon, shapely.MultiPolygon, shapely.LinearRing)):
-		points = get_polygon_lattice(geom, radius)
-		async for loc in find_locations(
-			points,
+		async for loc in find_locations_in_polygon(
+			geom,
 			session,
 			radius,
-			locale=locale,
 			allow_third_party=allow_third_party,
+			locale=locale,
 			options=options,
 			use_tqdm=use_tqdm,
 		):

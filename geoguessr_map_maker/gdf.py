@@ -6,6 +6,8 @@ import shapely
 from shapely.geometry.base import BaseGeometry
 from tqdm.auto import tqdm
 
+from geoguessr_map_maker.coordinate import Coordinate
+
 from .geo_utils import get_bearing
 from .pano_finder import LocationOptions, find_location, find_locations_in_geometry
 
@@ -17,7 +19,7 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
-async def point_to_custom_coordinate(
+async def find_point(
 	lat: float,
 	lng: float,
 	radius: int = 20,
@@ -36,16 +38,18 @@ async def point_to_custom_coordinate(
 	)
 	if not pano:
 		return None
-	# Pan the location towards whatever point we were originally looking at
-	bearing = cast(float, get_bearing(pano.lat, pano.lon, lat, lng, radians=False))
-	return {
-		'lat': lat if return_original_point else pano.lat,
-		'lng': lng if return_original_point else pano.lon,
-		'panoId': pano.id,
-		'heading': bearing if return_original_point else numpy.degrees(pano.heading),
-		'pitch': pano.pitch,
-		'countryCode': pano.country_code,
-	}
+	return Coordinate(
+		lat if return_original_point else pano.lat,
+		lng if return_original_point else pano.lon,
+		pano.id,
+		# Pan the location towards whatever point we were originally looking at
+		cast(float, get_bearing(pano.lat, pano.lon, lat, lng, radians=False))
+		if return_original_point
+		else numpy.degrees(pano.heading),
+		pano.pitch,
+		None,
+		pano.country_code,
+	)
 
 
 async def find_locations_in_row(
@@ -64,7 +68,7 @@ async def find_locations_in_row(
 		return
 
 	if isinstance(geometry, shapely.Point):
-		loc = await point_to_custom_coordinate(
+		loc = await find_point(
 			geometry.y,
 			geometry.x,
 			radius,
@@ -83,15 +87,17 @@ async def find_locations_in_row(
 			locale=locale,
 			options=options,
 		):
-			yield {
-				'lat': pano.lat,
-				'lng': pano.lon,
-				'panoId': pano.id,
-				'heading': pano.heading,
-				'pitch': pano.pitch,
-				'countryCode': pano.country_code,
-				'extra': row.drop('geometry').to_dict(),
-			}
+			# TODO: Do we always want to keep the original pano's heading/pitch? Or all of the row's data?
+			yield Coordinate(
+				pano.lat,
+				pano.lon,
+				pano.id,
+				pano.heading,
+				pano.pitch,
+				None,
+				pano.country_code,
+				row.drop('geometry').to_dict(),
+			)
 
 
 async def find_locations_in_geodataframe(
@@ -118,7 +124,7 @@ async def find_locations_in_geodataframe(
 		found = find_locations_in_row(
 			row, session, radius=radius, allow_third_party=allow_third_party, options=options
 		)
-		locations = {location['panoId']: location async for location in found}
+		locations = {location.pano_id: location async for location in found}
 		logger.info('Found %d locations', len(locations))
 		map_json['customCoordinates'] += locations.values()
 
