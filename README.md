@@ -7,9 +7,11 @@ To run from command line use python -m geoguessr_map_maker {options}
 
 ## TODO
 - Convert GTFS stops to map
+- Avoid overwriting output_file if it was set by default and already exists
 - Use as_completed in loops (but ensure we limit connections to streetview)
 - Ability to resume from where it was stopped
 - Handle other CRSes (either project all GeoDataFrames to WGS84, or don't reproject frames that aren't that)
 - (optionally) Discover locations via links
 - Keep track of rejected locations
-- Optionally use get_coverage_tile instead (which returns much less panos)
+- Optionally use get_coverage_tile instead (which returns much less panos and is much less fun, but it is faster)
+- Decompress .zst, .gz input files (not sure if geopandas opens gzip automatically but I'm fairly sure it doesn't do zstd)

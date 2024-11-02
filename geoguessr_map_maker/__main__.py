@@ -17,7 +17,7 @@ async def amain(
 ):
 	print(input_file)
 	if output_file is None:
-		output_file = input_file.with_suffix('.geojson')
+		output_file = input_file.with_suffix('.json')
 
 	gdf = geopandas.read_file(input_file)
 	if not isinstance(gdf, geopandas.GeoDataFrame):
