@@ -39,9 +39,9 @@ def _check_predicate(
 	predicate: Callable[[streetview.StreetViewPanorama], bool],
 ):
 	if option == PredicateOption.Require:
-		return not predicate(pano)
-	if option == PredicateOption.Reject:
 		return predicate(pano)
+	if option == PredicateOption.Reject:
+		return not predicate(pano)
 	return True
 
 
