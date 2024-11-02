@@ -106,7 +106,7 @@ async def find_locations_in_geodataframe(
 	coords: list[Coordinate] = []
 	for index, row in (t := tqdm(gdf.iterrows(), 'Finding rows', unit='row')):
 		if name_col:
-			name = str(row.get(name_col, index))
+			name = str(row.get(name_col, index)).replace('\r', ' ').replace('\n', ' ')
 			t.set_postfix({'index': index, str(name_col): name})
 		else:
 			name = str(index)
