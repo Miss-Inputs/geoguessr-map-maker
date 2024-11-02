@@ -1,5 +1,5 @@
 import logging
-from collections.abc import Hashable
+from collections.abc import Collection, Hashable
 from typing import TYPE_CHECKING, Any
 
 import shapely
@@ -58,7 +58,11 @@ async def find_locations_in_row(
 	if not isinstance(geometry, BaseGeometry):
 		logger.error('%s does not have geometry: %s', name or 'Row', row)
 		return
-	extra = row.drop(index='geometry').to_dict()
+	extra = {
+		str(k): v
+		for k, v in row.drop(index='geometry').to_dict()
+		if isinstance(v, (int, float, str))
+	}
 
 	if isinstance(geometry, shapely.Point):
 		loc = await find_point(
@@ -94,7 +98,7 @@ async def find_locations_in_geodataframe(
 	name_col: Hashable | None = None,
 	*,
 	allow_third_party: bool = False,
-):
+) -> Collection[Coordinate]:
 	"""
 	Parameters:
 		name_col: Column in gdf to use for displayng progress bars, logging, etc
