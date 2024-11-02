@@ -13,7 +13,7 @@ from .geodataframes import find_locations_in_geodataframe
 
 
 async def amain(
-	input_file: Path, output_file: Path | None = None, name_col: str | None = None, radius: int = 10
+	input_file: Path, output_file: Path | None = None, name_col: str | None = None, radius: int |None= None
 ):
 	print(input_file)
 	if output_file is None:
@@ -27,6 +27,8 @@ async def amain(
 		name_col = 'name'
 
 	async with aiohttp.ClientSession() as session:
+		if radius is None:
+			radius = 10
 		locations = await find_locations_in_geodataframe(gdf, session, radius, name_col=name_col)
 
 	geoguessr_map = CoordinateMap(locations, input_file.stem)
