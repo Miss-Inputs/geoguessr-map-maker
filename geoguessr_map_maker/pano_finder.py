@@ -79,7 +79,7 @@ def is_panorama_wanted(pano: streetview.StreetViewPanorama, options: LocationOpt
 
 	gen = camera_gen(pano)
 	if options.reject_gen_1:
-		return gen and gen > 1
+		return gen is None or gen > 1
 	return True
 
 
