@@ -135,14 +135,19 @@ async def find_locations(
 	points: Iterable[shapely.Point | tuple[float, float]],
 	session: 'aiohttp.ClientSession',
 	radius: int = 10,
+	name: str | None = None,
+	locale: str = 'en',
+	options: LocationOptions | None = None,
 	*,
 	allow_third_party: bool = False,
 	use_tqdm: bool = True,
-	locale: str = 'en',
-	options: LocationOptions | None = None,
 ) -> AsyncIterator[streetview.StreetViewPanorama]:
 	for point in tqdm(
-		points, 'Finding locations for points', unit='point', leave=False, disable=not use_tqdm
+		points,
+		f'Finding locations for {name or 'points'}',
+		unit='point',
+		leave=False,
+		disable=not use_tqdm,
 	):
 		pano = await find_location(
 			point,
@@ -160,6 +165,7 @@ async def find_locations_in_polygon(
 	poly: shapely.Polygon | shapely.MultiPolygon | shapely.LinearRing,
 	session: 'aiohttp.ClientSession',
 	radius: int = 10,
+	name: str | None = None,
 	*,
 	allow_third_party: bool = False,
 	locale: str = 'en',
@@ -168,13 +174,14 @@ async def find_locations_in_polygon(
 ):
 	points = get_polygon_lattice(poly, radius)
 	if not points:
-		logger.info('No points, trying representative point instead')
+		logger.info('No points in %s, trying representative point instead', name or 'polygon')
 		points = (poly.representative_point(),)
 
 	async for loc in find_locations(
 		points,
 		session,
 		radius,
+		name,
 		locale=locale,
 		allow_third_party=allow_third_party,
 		options=options,
@@ -187,9 +194,10 @@ async def find_locations_in_geometry(
 	geom: 'BaseGeometry',
 	session: 'aiohttp.ClientSession',
 	radius: int = 10,
+	name: str | None = None,
+	locale: str = 'en',
 	*,
 	allow_third_party: bool = False,
-	locale: str = 'en',
 	options: LocationOptions | None = None,
 	use_tqdm: bool = True,
 ) -> AsyncIterator[streetview.StreetViewPanorama]:
@@ -209,6 +217,7 @@ async def find_locations_in_geometry(
 			geom.geoms,
 			session,
 			radius,
+			name,
 			locale=locale,
 			allow_third_party=allow_third_party,
 			options=options,
@@ -220,6 +229,7 @@ async def find_locations_in_geometry(
 			geom,
 			session,
 			radius,
+			name,
 			allow_third_party=allow_third_party,
 			locale=locale,
 			options=options,
@@ -233,17 +243,21 @@ async def find_locations_in_geometry(
 			unit='part',
 			leave=False,
 			disable=not use_tqdm,
+			postfix={'name': name},
 		):
 			async for loc in find_locations_in_geometry(
 				part,
 				session,
 				radius,
+				name,
+				locale,
 				allow_third_party=allow_third_party,
-				locale=locale,
 				options=options,
 				use_tqdm=use_tqdm,
 			):
 				yield loc
 	# TODO: LineString (sample points along line)
 	else:
-		logger.warning('Unhandled geometry type: %s', geom.geom_type)
+		logger.warning(
+			'Unhandled geometry type%s: %s', f' in {name}' if name else '', geom.geom_type
+		)

@@ -1,4 +1,5 @@
 import logging
+from collections.abc import Hashable
 from typing import TYPE_CHECKING, Any, cast
 
 import numpy
@@ -57,14 +58,18 @@ async def find_locations_in_row(
 	session: 'aiohttp.ClientSession',
 	radius: int,
 	options: LocationOptions | None = None,
-	*,
+	name: str | None = None,
 	locale: str = 'en',
+	*,
 	allow_third_party: bool = False,
 	return_original_point: bool = True,
 ):
+	"""
+	Parameters:
+		name: Only used for logging/displaying progress bars"""
 	geometry = row.geometry
 	if not isinstance(geometry, BaseGeometry):
-		logger.error('Row does not have geometry: %s', row)
+		logger.error('%s does not have geometry: %s', name or 'Row', row)
 		return
 
 	if isinstance(geometry, shapely.Point):
@@ -83,6 +88,7 @@ async def find_locations_in_row(
 			geometry,
 			session,
 			radius,
+			name,
 			allow_third_party=allow_third_party,
 			locale=locale,
 			options=options,
@@ -105,9 +111,14 @@ async def find_locations_in_geodataframe(
 	session: 'aiohttp.ClientSession',
 	radius: int = 10,
 	options: LocationOptions | None = None,
+	name_col: Hashable | None = None,
 	*,
 	allow_third_party: bool = False,
 ):
+	"""
+	Parameters:
+		name_col: Column in gdf to use for displayng progress bars, logging, etc
+	"""
 	map_json: dict[str, Any] = {
 		# Not filling this in completely, as we create the map as a draft and then press the import button
 		# avatar: {background, decoration, ground, landscape}
@@ -120,12 +131,18 @@ async def find_locations_in_geodataframe(
 	}
 
 	for index, row in (t := tqdm(gdf.iterrows(), 'Finding rows', unit='row')):
-		t.set_postfix(index=index, **row.drop(index='geometry').to_dict())
+		if name_col:
+			name = str(row.get(name_col, index))
+			t.set_postfix({'index': index, str(name_col): name})
+		else:
+			name = str(index)
+			t.set_postfix(index=index)
+
 		found = find_locations_in_row(
-			row, session, radius=radius, allow_third_party=allow_third_party, options=options
+			row, session, radius, options, name, allow_third_party=allow_third_party
 		)
 		locations = {location.pano_id: location async for location in found}
-		logger.info('Found %d locations', len(locations))
+		logger.info('Found %d locations in %s', len(locations), name)
 		map_json['customCoordinates'] += locations.values()
 
 	return map_json
