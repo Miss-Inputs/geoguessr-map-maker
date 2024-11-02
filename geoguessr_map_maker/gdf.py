@@ -120,7 +120,7 @@ async def find_locations_in_geodataframe(
 	}
 
 	for index, row in (t := tqdm(gdf.iterrows(), 'Finding rows', unit='row')):
-		t.set_postfix(index=index, **row.to_dict())
+		t.set_postfix(index=index, **row.drop(index='geometry').to_dict())
 		found = find_locations_in_row(
 			row, session, radius=radius, allow_third_party=allow_third_party, options=options
 		)
