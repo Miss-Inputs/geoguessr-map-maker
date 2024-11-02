@@ -60,7 +60,7 @@ async def find_locations_in_row(
 		return
 	extra = {
 		str(k): v
-		for k, v in row.drop(index='geometry').to_dict()
+		for k, v in row.drop(index='geometry').to_dict().items()
 		if isinstance(v, (int, float, str))
 	}
 
