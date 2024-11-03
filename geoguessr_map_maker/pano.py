@@ -64,6 +64,7 @@ not_building_place_types = (
 		'Trail head',
 		'Park',
 		'Amusement park',
+		'Agricultural production',
 		# Maybe Airport
 		# Compound grounds? Community garden? City park? Memorial park? Sometimes Landmark isn't, or it's around the outside of one
 		# Dam might not be a building… hrm
