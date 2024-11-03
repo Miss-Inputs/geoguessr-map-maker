@@ -10,7 +10,7 @@ import shapely
 from streetlevel import streetview
 from tqdm import tqdm
 
-from .pano import Panorama, camera_gen, ensure_full_pano, has_building, is_intersection
+from .pano import Panorama, camera_gen, ensure_full_pano, has_building, is_intersection, is_trekker
 from .shape_utils import get_polygon_lattice
 
 if TYPE_CHECKING:
@@ -64,8 +64,8 @@ async def _check_predicate(
 class LocationOptions:
 	allow_normal: bool = True
 	"""Allow ordinary car coverage"""
-	allow_trekker: bool = True
-	"""Allow trekker coverage"""
+	trekker: PredicateOption = PredicateOption.Ignore
+	"""Allow/reject/require trekker coverage"""
 	reject_gen_1: bool = False
 	"""Do not allow panoramas that are official coverage and gen 1"""
 	intersections: PredicateOption = PredicateOption.Ignore
@@ -90,12 +90,8 @@ async def is_panorama_wanted(
 			pano = await ensure_full_pano(pano, session)
 		if pano.pano.source == 'launch':
 			return False
-	if not options.allow_trekker:
-		if not pano.has_extended_info:
-			pano = await ensure_full_pano(pano, session)
-		if pano.pano.source in {'scout', 'innerspace', 'cultural_institute'}:
-			return False
-
+	if not await _check_predicate(pano, session, options.trekker, is_trekker):
+		return False
 	if not await _check_predicate(pano, session, options.intersections, is_intersection):
 		return False
 	if not await _check_predicate(pano, session, options.buildings, has_building):
