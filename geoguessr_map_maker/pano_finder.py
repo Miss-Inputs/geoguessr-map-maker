@@ -24,7 +24,7 @@ async def find_panorama_backoff(
 	lat: float,
 	lng: float,
 	session: aiohttp.ClientSession,
-	radius: int = 10,
+	radius: int = 20,
 	locale: str = 'en',
 	*,
 	search_third_party: bool = False,
@@ -114,7 +114,7 @@ async def filter_panos(
 async def find_location(
 	point: shapely.Point | tuple[float, float],
 	session: 'aiohttp.ClientSession',
-	radius: int = 10,
+	radius: int = 20,
 	*,
 	locale: str = 'en',
 	allow_third_party: bool = False,
@@ -156,7 +156,7 @@ async def find_location(
 async def find_locations(
 	points: Iterable[shapely.Point | tuple[float, float]],
 	session: 'aiohttp.ClientSession',
-	radius: int = 10,
+	radius: int = 20,
 	name: str | None = None,
 	locale: str = 'en',
 	options: LocationOptions | None = None,
@@ -186,7 +186,7 @@ async def find_locations(
 async def find_locations_in_geometry(
 	geom: 'BaseGeometry',
 	session: 'aiohttp.ClientSession',
-	radius: int = 10,
+	radius: int = 20,
 	name: str | None = None,
 	locale: str = 'en',
 	*,

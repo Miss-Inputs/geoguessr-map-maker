@@ -70,7 +70,7 @@ async def find_locations_in_row(
 async def find_locations_in_geodataframe(
 	gdf: 'geopandas.GeoDataFrame',
 	session: 'aiohttp.ClientSession',
-	radius: int = 10,
+	radius: int = 20,
 	options: LocationOptions | None = None,
 	name_col: Hashable | None = None,
 	*,

@@ -38,7 +38,7 @@ async def amain(
 		# Even better: If it is a map, only overwrite the customCoordinates field
 		output_file = input_file.with_suffix('.json')
 	if radius is None:
-		radius = 10
+		radius = 20
 
 	if input_file_type == InputFileType.GeoJSON:
 		gdf = geopandas.read_file(input_file)
@@ -79,7 +79,7 @@ def main():
 		help='Column in input_file to interpret as the name of each row, for logging/progress purposes',
 	)
 	argparser.add_argument(
-		'--radius', type=int, help='Search radius for panoramas in metres, default 10m', default=10
+		'--radius', type=int, help='Search radius for panoramas in metres, default 20m', default=20
 	)
 	argparser.add_argument(
 		'--from-gtfs',
