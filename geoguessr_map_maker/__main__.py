@@ -12,7 +12,7 @@ from tqdm.contrib.logging import logging_redirect_tqdm
 from geoguessr_map_maker.gtfs import find_stops, load_gtfs_stops
 
 from .coordinate import CoordinateMap
-from .geodataframes import find_locations_in_geodataframe
+from .geodataframes import find_locations_in_geodataframe, gdf_to_regions_map
 
 
 class InputFileType(Enum):
@@ -24,12 +24,20 @@ class InputFileType(Enum):
 	"""GTFS feed"""
 
 
+async def _write_json(path: Path, data):
+	map_json = json.dumps(data, indent='\t')
+	async with aiofiles.open(path, mode='w', encoding='utf-8') as f:
+		await f.write(map_json)
+
+
 async def amain(
 	input_file: Path,
 	input_file_type: InputFileType,
 	output_file: Path | None = None,
 	name_col: str | None = None,
 	radius: int | None = None,
+	*,
+	as_region_map: bool = False,
 ):
 	# TODO: Allow input_file to not actually be a filesystem path, because geopandas read_file can get URLs and that sort of thing
 	# TODO: Autodetect input_file_type, e.g. if zip (and contains stops.txt) then it should be GTFS
@@ -47,6 +55,9 @@ async def amain(
 			return
 		if name_col is None and 'name' in gdf.columns:
 			name_col = 'name'
+		if as_region_map:
+			await _write_json(output_file, gdf_to_regions_map(gdf, name_col))
+			return
 
 		async with aiohttp.ClientSession() as session:
 			locations = await find_locations_in_geodataframe(
@@ -60,9 +71,7 @@ async def amain(
 		raise ValueError(f'Whoops I have not implemented {input_file_type} yet')
 
 	geoguessr_map = CoordinateMap(locations, input_file.stem)
-	map_json = json.dumps(geoguessr_map.to_dict(), indent='\t')
-	async with aiofiles.open(output_file, mode='w', encoding='utf-8') as f:
-		await f.write(map_json)
+	await _write_json(output_file, geoguessr_map.to_dict())
 
 
 def main():
@@ -82,6 +91,11 @@ def main():
 		'--radius', type=int, help='Search radius for panoramas in metres, default 20m', default=20
 	)
 	argparser.add_argument(
+		'--region-map',
+		action='store_true',
+		help='Generate a region map instead of finding coordinates in each area',
+	)
+	argparser.add_argument(
 		'--from-gtfs',
 		action='store_const',
 		const=InputFileType.GTFS,
@@ -90,7 +104,6 @@ def main():
 	)
 	# TODO: Arguments for LocationOptions, allow_third_party, etc
 	# TODO: Argument for input_file to be a GeoGuessr map instead, although we could try and autodetect this
-	# TODO: Argument for regions mode
 
 	args = argparser.parse_args()
 
@@ -101,6 +114,7 @@ def main():
 			args.output_file,
 			args.name_col,
 			args.radius,
+			as_region_map=args.region_map or False,
 		)
 	)
 

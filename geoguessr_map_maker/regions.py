@@ -1,4 +1,5 @@
 """Tools for region mode maps"""
+
 import itertools
 from collections.abc import Iterator, Mapping
 from typing import Any
@@ -28,7 +29,6 @@ def iter_boundaries(
 def polygon_to_geoguessr_map(
 	poly: shapely.Polygon | shapely.MultiPolygon | shapely.LinearRing,
 ) -> Mapping[str, Any]:
-	# TODO: Another thing that takes a GeoDataFrame and outputs each row as a different region
 	regions = []
 	for ring in iter_boundaries(poly):
 		coords = [{'lat': y, 'lng': x} for x, y in ring.coords]

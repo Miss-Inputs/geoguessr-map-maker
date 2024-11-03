@@ -6,6 +6,8 @@ import shapely
 from shapely.geometry.base import BaseGeometry
 from tqdm.auto import tqdm
 
+from geoguessr_map_maker.regions import iter_boundaries
+
 from .coordinate import Coordinate, find_point, pano_to_coordinate
 from .pano_finder import LocationOptions, find_locations_in_geometry
 
@@ -97,3 +99,27 @@ async def find_locations_in_geodataframe(
 		coords += locations.values()
 
 	return coords
+
+
+def gdf_to_regions(gdf: 'geopandas.GeoDataFrame', name_col: Hashable | None = None):
+	with tqdm(gdf.iterrows(), 'Converting rows', unit='row', total=gdf.index.size) as t:
+		for index, row in t:
+			if name_col:
+				name = str(row.get(name_col, index)).replace('\r', ' ').replace('\n', ' ')
+				t.set_postfix({'index': index, str(name_col): name})
+			else:
+				name = str(index)
+				t.set_postfix(index=index)
+			poly = row.geometry
+			if not isinstance(poly, (shapely.Polygon, shapely.MultiPolygon, shapely.LinearRing)):
+				logger.info('%s is not a polygon or ring, skipping', name)
+			for ring in iter_boundaries(poly):
+				yield name, ring
+
+
+def gdf_to_regions_map(gdf: 'geopandas.GeoDataFrame', name_col: Hashable | None = None):
+	regions = []
+	for name, ring in gdf_to_regions(gdf, name_col):
+		coords = [{'lat': y, 'lng': x} for x, y in ring.coords]
+		regions.append({'coordinates': coords, 'extra': {'name': name}})
+	return {'mode': 'regions', 'regions': regions}

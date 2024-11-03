@@ -4,6 +4,7 @@ import itertools
 from collections.abc import Iterable
 
 import shapely
+from shapely.geometry.base import BaseMultipartGeometry
 from tqdm.auto import tqdm  # TODO: Should be an optional dependency probably
 
 
@@ -90,7 +91,7 @@ def split_around_interiors(
 		)
 	]
 	union = shapely.unary_union([poly.boundary, *lines])
-	assert isinstance(union, shapely.MultiPolygon)
+	assert isinstance(union, BaseMultipartGeometry), f'Union was instead {type(union)}'
 	return [
 		polygon
 		for polygon in shapely.polygonize(tuple(union.geoms)).geoms
