@@ -8,7 +8,7 @@ import aiohttp
 import backoff
 import shapely
 from streetlevel import streetview
-from tqdm import tqdm
+from tqdm.auto import tqdm
 
 from .pano import Panorama, camera_gen, ensure_full_pano, has_building, is_intersection, is_trekker
 from .shape_utils import get_polygon_lattice

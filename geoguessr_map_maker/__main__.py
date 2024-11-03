@@ -1,6 +1,7 @@
 import asyncio
 import json
 from argparse import ArgumentParser
+from enum import Enum, auto
 from pathlib import Path
 
 import aiofiles
@@ -8,29 +9,55 @@ import aiohttp
 import geopandas
 from tqdm.contrib.logging import logging_redirect_tqdm
 
+from geoguessr_map_maker.gtfs import find_stops, load_gtfs_stops
+
 from .coordinate import CoordinateMap
 from .geodataframes import find_locations_in_geodataframe
 
 
+class InputFileType(Enum):
+	GeoJSON = auto()
+	"""GeoJSON, or other file that can be opened by geopandas"""
+	GeoguessrMap = auto()
+	"""GeoGuessr map"""
+	GTFS = auto()
+	"""GTFS feed"""
+
+
 async def amain(
-	input_file: Path, output_file: Path | None = None, name_col: str | None = None, radius: int |None= None
+	input_file: Path,
+	input_file_type: InputFileType,
+	output_file: Path | None = None,
+	name_col: str | None = None,
+	radius: int | None = None,
 ):
-	#TODO: Allow input_file to not actually be a filesystem path, because geopandas read_file can get URLs and that sort of thing
+	# TODO: Allow input_file to not actually be a filesystem path, because geopandas read_file can get URLs and that sort of thing
+	# TODO: Autodetect input_file_type, e.g. if zip (and contains stops.txt) then it should be GTFS
 	if output_file is None:
-		#TODO: Avoid clobbering output_file
+		# TODO: Avoid clobbering output_file
+		# Even better: If it is a map, only overwrite the customCoordinates field
 		output_file = input_file.with_suffix('.json')
+	if radius is None:
+		radius = 10
 
-	gdf = geopandas.read_file(input_file)
-	if not isinstance(gdf, geopandas.GeoDataFrame):
-		print(f'What the, gdf is {type(gdf)}')
-		return
-	if name_col is None and 'name' in gdf.columns:
-		name_col = 'name'
+	if input_file_type == InputFileType.GeoJSON:
+		gdf = geopandas.read_file(input_file)
+		if not isinstance(gdf, geopandas.GeoDataFrame):
+			print(f'What the, gdf is {type(gdf)}')
+			return
+		if name_col is None and 'name' in gdf.columns:
+			name_col = 'name'
 
-	async with aiohttp.ClientSession() as session:
-		if radius is None:
-			radius = 10
-		locations = await find_locations_in_geodataframe(gdf, session, radius, name_col=name_col)
+		async with aiohttp.ClientSession() as session:
+			locations = await find_locations_in_geodataframe(
+				gdf, session, radius, name_col=name_col
+			)
+	elif input_file_type == InputFileType.GTFS:
+		stops = await load_gtfs_stops(input_file)
+		async with aiohttp.ClientSession() as session:
+			locations = [loc async for loc in find_stops(stops, session, radius)]
+	else:
+		raise ValueError(f'Whoops I have not implemented {input_file_type} yet')
 
 	geoguessr_map = CoordinateMap(locations, input_file.stem)
 	map_json = json.dumps(geoguessr_map.to_dict(), indent='\t')
@@ -51,13 +78,31 @@ def main():
 		'--name-col',
 		help='Column in input_file to interpret as the name of each row, for logging/progress purposes',
 	)
-	argparser.add_argument('--radius', type=int, help='Search radius for panoramas')
+	argparser.add_argument(
+		'--radius', type=int, help='Search radius for panoramas in metres, default 10m', default=10
+	)
+	argparser.add_argument(
+		'--from-gtfs',
+		action='store_const',
+		const=InputFileType.GTFS,
+		dest='file_type',
+		help='Read input_file as a GTFS feed and make a map of the stops',
+	)
 	# TODO: Arguments for LocationOptions, allow_third_party, etc
 	# TODO: Argument for input_file to be a GeoGuessr map instead, although we could try and autodetect this
 	# TODO: Argument for regions mode
 
 	args = argparser.parse_args()
-	asyncio.run(amain(args.input_file, args.output_file, args.name_col, args.radius))
+
+	asyncio.run(
+		amain(
+			args.input_file,
+			args.file_type or InputFileType.GeoJSON,
+			args.output_file,
+			args.name_col,
+			args.radius,
+		)
+	)
 
 
 with logging_redirect_tqdm():

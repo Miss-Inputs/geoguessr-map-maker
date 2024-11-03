@@ -5,8 +5,10 @@ from typing import TYPE_CHECKING, Any, cast
 import numpy
 
 from .geo_utils import get_bearing
+from .pano_finder import LocationOptions, find_location
 
 if TYPE_CHECKING:
+	import aiohttp
 	from streetlevel.streetview import StreetViewPanorama
 
 
@@ -74,6 +76,31 @@ def pano_to_coordinate(
 		None,
 		pano.country_code,
 		extra,
+	)
+
+
+async def find_point(
+	lat: float,
+	lng: float,
+	session: 'aiohttp.ClientSession',
+	radius: int = 20,
+	extra: dict[str, Any] | None = None,
+	options: LocationOptions | None = None,
+	*,
+	allow_third_party: bool = False,
+	return_original_point: bool = True,
+):
+	pano = await find_location(
+		(lat, lng),
+		radius=radius,
+		allow_third_party=allow_third_party,
+		session=session,
+		options=options,
+	)
+	if not pano:
+		return None
+	return pano_to_coordinate(
+		pano.pano, lat, lng, extra, return_original_point=return_original_point
 	)
 
 

@@ -1,13 +1,13 @@
 import logging
 from collections.abc import Collection, Hashable
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 
 import shapely
 from shapely.geometry.base import BaseGeometry
 from tqdm.auto import tqdm
 
-from .coordinate import Coordinate, pano_to_coordinate
-from .pano_finder import LocationOptions, find_location, find_locations_in_geometry
+from .coordinate import Coordinate, find_point, pano_to_coordinate
+from .pano_finder import LocationOptions, find_locations_in_geometry
 
 if TYPE_CHECKING:
 	import aiohttp
@@ -15,29 +15,6 @@ if TYPE_CHECKING:
 	import pandas
 
 logger = logging.getLogger(__name__)
-
-
-async def find_point(
-	lat: float,
-	lng: float,
-	radius: int = 20,
-	extra: dict[str, Any] | None = None,
-	*,
-	allow_third_party: bool = False,
-	return_original_point: bool = True,
-	session: 'aiohttp.ClientSession',
-	options: LocationOptions | None = None,
-):
-	pano = await find_location(
-		(lat, lng),
-		radius=radius,
-		allow_third_party=allow_third_party,
-		session=session,
-		options=options,
-	)
-	if not pano:
-		return None
-	return pano_to_coordinate(pano.pano, lat, lng, extra, return_original_point=return_original_point)
 
 
 async def find_locations_in_row(
@@ -68,10 +45,10 @@ async def find_locations_in_row(
 		loc = await find_point(
 			geometry.y,
 			geometry.x,
+			session,
 			radius,
 			extra,
 			allow_third_party=allow_third_party,
-			session=session,
 			return_original_point=return_original_point,
 		)
 		if loc:
