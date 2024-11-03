@@ -145,12 +145,12 @@ async def find_location(
 	pano = await find_panorama_backoff(
 		lat, lon, session=session, radius=radius, locale=locale, search_third_party=False
 	)
-	if not pano or not is_panorama_wanted(pano, session, options):
+	if not pano or not await is_panorama_wanted(pano, session, options):
 		if allow_third_party:
 			pano = await find_panorama_backoff(
 				lat, lon, session=session, radius=radius, locale=locale, search_third_party=True
 			)
-			if not pano or not is_panorama_wanted(pano, session, options):
+			if not pano or not await is_panorama_wanted(pano, session, options):
 				return None
 		return None
 
