@@ -1,8 +1,8 @@
 import logging
-from collections.abc import AsyncIterator, Callable, Iterable
+from collections.abc import AsyncIterator, Callable, Coroutine, Iterable
 from dataclasses import dataclass
 from enum import Enum, auto
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 import aiohttp
 import backoff
@@ -10,7 +10,7 @@ import shapely
 from streetlevel import streetview
 from tqdm import tqdm
 
-from .pano import camera_gen, has_building, is_intersection
+from .pano import Panorama, camera_gen, ensure_full_pano, has_building, is_intersection
 from .shape_utils import get_polygon_lattice
 
 if TYPE_CHECKING:
@@ -18,9 +18,23 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
-find_panorama_backoff = backoff.on_exception(backoff.expo, aiohttp.ClientConnectionError)(
-	streetview.find_panorama_async
-)
+
+@backoff.on_exception(backoff.expo, aiohttp.ClientConnectionError)
+async def find_panorama_backoff(
+	lat: float,
+	lng: float,
+	session: aiohttp.ClientSession,
+	radius: int = 10,
+	locale: str = 'en',
+	*,
+	search_third_party: bool = False,
+):
+	pano = await streetview.find_panorama_async(
+		lat, lng, session, radius, locale, search_third_party=search_third_party
+	)
+	if pano is None:
+		return None
+	return Panorama(pano, has_extended_info=True, has_places=False, has_depth=False)
 
 
 class PredicateOption(Enum):
@@ -33,15 +47,16 @@ class PredicateOption(Enum):
 	"""Require something to _not_ be true about the panorama"""
 
 
-def _check_predicate(
-	pano: streetview.StreetViewPanorama,
+async def _check_predicate(
+	pano: Panorama,
+	session: aiohttp.ClientSession,
 	option: PredicateOption,
-	predicate: Callable[[streetview.StreetViewPanorama], bool],
+	predicate: Callable[[Panorama, aiohttp.ClientSession], Coroutine[Any, Any, bool]],
 ):
 	if option == PredicateOption.Require:
-		return predicate(pano)
+		return await predicate(pano, session)
 	if option == PredicateOption.Reject:
-		return not predicate(pano)
+		return not await predicate(pano, session)
 	return True
 
 
@@ -64,29 +79,40 @@ class LocationOptions:
 	# Gen 1 only, because at that point why not
 
 
-def is_panorama_wanted(pano: streetview.StreetViewPanorama, options: LocationOptions | None = None):
+async def is_panorama_wanted(
+	pano: Panorama, session: aiohttp.ClientSession, options: LocationOptions | None = None
+):
 	if options is None:
 		options = LocationOptions()
 
-	if pano.source == 'launch' and not options.allow_normal:
+	if not options.allow_normal:
+		if not pano.has_extended_info:
+			pano = await ensure_full_pano(pano, session)
+		if pano.pano.source == 'launch':
+			return False
+	if not options.allow_trekker:
+		if not pano.has_extended_info:
+			pano = await ensure_full_pano(pano, session)
+		if pano.pano.source in {'scout', 'innerspace', 'cultural_institute'}:
+			return False
+
+	if not await _check_predicate(pano, session, options.intersections, is_intersection):
 		return False
-	if pano.source in {'scout', 'innerspace', 'cultural_institute'} and not options.allow_trekker:
-		return False
-	if not _check_predicate(pano, options.intersections, is_intersection):
-		return False
-	if not _check_predicate(pano, options.buildings, has_building):
+	if not await _check_predicate(pano, session, options.buildings, has_building):
 		return False
 
-	gen = camera_gen(pano)
+	gen = await camera_gen(pano, session)
 	if options.reject_gen_1:
 		return gen is None or gen > 1
 	return True
 
 
-def filter_panos(
-	panos: Iterable[streetview.StreetViewPanorama], options: LocationOptions | None = None
+async def filter_panos(
+	panos: Iterable[Panorama],
+	session: aiohttp.ClientSession,
+	options: LocationOptions | None = None,
 ):
-	return [pano for pano in panos if is_panorama_wanted(pano, options)]
+	return [pano for pano in panos if await is_panorama_wanted(pano, session, options)]
 
 
 async def find_location(
@@ -97,7 +123,7 @@ async def find_location(
 	locale: str = 'en',
 	allow_third_party: bool = False,
 	options: LocationOptions | None = None,
-) -> streetview.StreetViewPanorama | None:
+) -> Panorama | None:
 	"""
 	Parameters:
 		point: Shapely Point object, or (latitude, longitude) tuple
@@ -119,12 +145,12 @@ async def find_location(
 	pano = await find_panorama_backoff(
 		lat, lon, session=session, radius=radius, locale=locale, search_third_party=False
 	)
-	if not pano or not is_panorama_wanted(pano, options):
+	if not pano or not is_panorama_wanted(pano, session, options):
 		if allow_third_party:
 			pano = await find_panorama_backoff(
 				lat, lon, session=session, radius=radius, locale=locale, search_third_party=True
 			)
-			if not pano or not is_panorama_wanted(pano, options):
+			if not pano or not is_panorama_wanted(pano, session, options):
 				return None
 		return None
 
@@ -141,7 +167,7 @@ async def find_locations(
 	*,
 	allow_third_party: bool = False,
 	use_tqdm: bool = True,
-) -> AsyncIterator[streetview.StreetViewPanorama]:
+) -> AsyncIterator[Panorama]:
 	for point in tqdm(
 		points,
 		f'Finding locations for {name or 'points'}',
@@ -160,6 +186,7 @@ async def find_locations(
 		if pano:
 			yield pano
 
+
 async def find_locations_in_geometry(
 	geom: 'BaseGeometry',
 	session: 'aiohttp.ClientSession',
@@ -170,7 +197,7 @@ async def find_locations_in_geometry(
 	allow_third_party: bool = False,
 	options: LocationOptions | None = None,
 	use_tqdm: bool = True,
-) -> AsyncIterator[streetview.StreetViewPanorama]:
+) -> AsyncIterator[Panorama]:
 	if isinstance(geom, shapely.Point):
 		pano = await find_location(
 			geom,

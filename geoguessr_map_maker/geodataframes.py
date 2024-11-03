@@ -37,7 +37,7 @@ async def find_point(
 	)
 	if not pano:
 		return None
-	return pano_to_coordinate(pano, lat, lng, extra, return_original_point=return_original_point)
+	return pano_to_coordinate(pano.pano, lat, lng, extra, return_original_point=return_original_point)
 
 
 async def find_locations_in_row(
@@ -87,7 +87,7 @@ async def find_locations_in_row(
 			options=options,
 		):
 			# TODO: Do we always want to keep the original pano's heading/pitch? Or all of the row's data?
-			yield pano_to_coordinate(pano, extra=extra, return_original_point=False)
+			yield pano_to_coordinate(pano.pano, extra=extra, return_original_point=False)
 
 
 async def find_locations_in_geodataframe(
