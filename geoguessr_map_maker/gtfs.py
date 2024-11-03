@@ -39,7 +39,7 @@ class Stop:
 async def load_gtfs_stops(path: Path):
 	async with aiofiles.open(path, 'rb') as f:
 		z = ZipFile(BytesIO(await f.read()))
-		stops_txt = z.read('stops.txt').decode('utf-8', errors='ignore')
+		stops_txt = z.read('stops.txt').decode('utf-8-sig', errors='ignore')
 		stop_reader = csv.DictReader(stops_txt.splitlines())
 		return [Stop(d) for d in stop_reader if 'stop_lat' in d]
 

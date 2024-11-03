@@ -9,10 +9,9 @@ import aiohttp
 import geopandas
 from tqdm.contrib.logging import logging_redirect_tqdm
 
-from geoguessr_map_maker.gtfs import find_stops, load_gtfs_stops
-
 from .coordinate import CoordinateMap
 from .geodataframes import find_locations_in_geodataframe, gdf_to_regions_map
+from .gtfs import find_stops, load_gtfs_stops
 
 
 class InputFileType(Enum):
