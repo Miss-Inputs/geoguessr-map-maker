@@ -206,7 +206,14 @@ async def find_locations_in_geometry(
 		if pano:
 			yield pano
 		return
-	if isinstance(geom, shapely.geometry.base.BaseMultipartGeometry):
+	if isinstance(geom, shapely.MultiPoint):
+		points = geom.geoms
+	elif isinstance(geom, (shapely.Polygon, shapely.MultiPolygon, shapely.LinearRing)):
+		points = get_polygon_lattice(geom, radius)
+		if not points:
+			logger.info('No points in %s, trying representative point instead', name or 'polygon')
+			points = (geom.representative_point(),)
+	elif isinstance(geom, shapely.geometry.base.BaseMultipartGeometry):
 		for part in tqdm(
 			geom.geoms,
 			'Finding locations in multi-part geometry',
@@ -228,13 +235,6 @@ async def find_locations_in_geometry(
 				yield pano
 		return
 
-	if isinstance(geom, shapely.MultiPoint):
-		points = geom.geoms
-	elif isinstance(geom, (shapely.Polygon, shapely.MultiPolygon, shapely.LinearRing)):
-		points = get_polygon_lattice(geom, radius)
-		if not points:
-			logger.info('No points in %s, trying representative point instead', name or 'polygon')
-			points = (geom.representative_point(),)
 	else:
 		logger.warning(
 			'Unhandled geometry type%s: %s', f' in {name}' if name else '', geom.geom_type
