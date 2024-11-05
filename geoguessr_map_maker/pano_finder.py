@@ -1,3 +1,4 @@
+import json
 import logging
 from collections.abc import AsyncIterator, Callable, Coroutine, Iterable
 from dataclasses import dataclass
@@ -19,7 +20,7 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
-@backoff.on_exception(backoff.expo, aiohttp.ClientConnectionError)
+@backoff.on_exception(backoff.expo, (aiohttp.ClientConnectionError, json.JSONDecodeError))
 async def find_panorama_backoff(
 	lat: float,
 	lng: float,
