@@ -2,6 +2,7 @@ import logging
 from collections.abc import Collection, Hashable
 from typing import TYPE_CHECKING
 
+import pandas
 import shapely
 from shapely.geometry.base import BaseGeometry
 from tqdm.auto import tqdm
@@ -14,7 +15,6 @@ from .pano_finder import LocationOptions, find_locations_in_geometry
 if TYPE_CHECKING:
 	import aiohttp
 	import geopandas
-	import pandas
 
 logger = logging.getLogger(__name__)
 
