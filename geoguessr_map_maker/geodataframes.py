@@ -40,7 +40,7 @@ async def find_locations_in_row(
 	extra = {
 		str(k): v
 		for k, v in row.drop(index='geometry').to_dict().items()
-		if isinstance(v, (int, float, str))
+		if isinstance(v, (int, float, str)) and not pandas.isna(v)
 	}
 
 	if isinstance(geometry, shapely.Point):
