@@ -7,8 +7,10 @@ from typing import TYPE_CHECKING, Any
 
 import aiohttp
 import backoff
+import numpy
 import shapely
 from streetlevel import streetview
+from streetlevel.geo import tile_coord_to_wgs84, wgs84_to_tile_coord
 from tqdm.auto import tqdm
 
 from .pano import Panorama, camera_gen, ensure_full_pano, has_building, is_intersection, is_trekker
@@ -254,3 +256,30 @@ async def find_locations_in_geometry(
 		use_tqdm=use_tqdm,
 	):
 		yield pano
+
+
+async def get_panos_in_geometry_via_tiles(
+	poly: 'BaseGeometry', session: 'aiohttp.ClientSession', name: str | None = None
+) -> AsyncIterator[Panorama]:
+	shapely.prepare(poly)
+	west, south, east, north = poly.bounds
+	start_x, start_y = wgs84_to_tile_coord(north, west, 17)
+	end_x, end_y = wgs84_to_tile_coord(south, east, 17)
+
+	x_range = numpy.arange(start_x, end_x + 1)
+	y_range = numpy.arange(start_y, end_y + 1)
+	tiles = numpy.vstack(numpy.dstack(numpy.meshgrid(x_range, y_range))) #type: ignore[overload]
+
+	for tile_x, tile_y in tqdm(
+		tiles, f'Getting tiles for {name}' if name else 'Getting tiles', unit='tile'
+	):
+		tile_max_lat, tile_min_lng = tile_coord_to_wgs84(tile_x, tile_y, 17)
+		tile_min_lat, tile_max_lng = tile_coord_to_wgs84(tile_x + 1, tile_y + 1, 17)
+		if not shapely.box(tile_min_lng, tile_min_lat, tile_max_lng, tile_max_lat).intersects(poly):
+			continue
+
+		tile_panos = await streetview.get_coverage_tile_async(tile_x, tile_y, session)
+
+		for pano in tile_panos:
+			if shapely.contains_xy(poly, pano.lon, pano.lat):
+				yield Panorama(pano, has_extended_info=False)
