@@ -45,10 +45,10 @@ async def amain(
 	# TODO: Allow input_file to not actually be a filesystem path, because geopandas read_file can get URLs and that sort of thing
 	# TODO: Autodetect input_file_type, e.g. if zip (and contains stops.txt) then it should be GTFS
 	if stats:
-		#TODO: Another argument to output raw numbers instead of percentages, but this is overcomplicated enough aaaaa
+		# TODO: Another argument to output raw numbers instead of percentages, but this is overcomplicated enough aaaaa
 		await get_stats(input_file, stats_region_file, name_col, output_file)
 		return
-	
+
 	if output_file is None:
 		# TODO: Avoid clobbering output_file
 		# Even better: If it is a map, only overwrite the customCoordinates field
