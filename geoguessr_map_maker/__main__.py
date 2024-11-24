@@ -6,8 +6,10 @@ from pathlib import Path
 
 import aiofiles
 import aiohttp
-import geopandas
 from tqdm.contrib.logging import logging_redirect_tqdm
+
+from geoguessr_map_maker.gdf_utils import read_geo_file
+from geoguessr_map_maker.stats import get_stats
 
 from .coordinate import CoordinateMap
 from .geodataframes import find_locations_in_geodataframe, gdf_to_regions_map
@@ -37,9 +39,16 @@ async def amain(
 	radius: int | None = None,
 	*,
 	as_region_map: bool = False,
+	stats: bool = False,
+	stats_region_file: Path | None = None,
 ):
 	# TODO: Allow input_file to not actually be a filesystem path, because geopandas read_file can get URLs and that sort of thing
 	# TODO: Autodetect input_file_type, e.g. if zip (and contains stops.txt) then it should be GTFS
+	if stats:
+		#TODO: Another argument to output raw numbers instead of percentages, but this is overcomplicated enough aaaaa
+		await get_stats(input_file, stats_region_file, name_col, output_file)
+		return
+	
 	if output_file is None:
 		# TODO: Avoid clobbering output_file
 		# Even better: If it is a map, only overwrite the customCoordinates field
@@ -48,10 +57,7 @@ async def amain(
 		radius = 20
 
 	if input_file_type == InputFileType.GeoJSON:
-		gdf = geopandas.read_file(input_file)
-		if not isinstance(gdf, geopandas.GeoDataFrame):
-			print(f'What the, gdf is {type(gdf)}')
-			return
+		gdf = read_geo_file(input_file)
 		if name_col is None and 'name' in gdf.columns:
 			name_col = 'name'
 		if as_region_map:
@@ -101,8 +107,17 @@ def main():
 		dest='file_type',
 		help='Read input_file as a GTFS feed and make a map of the stops',
 	)
+	# TODO: Whoops we should probably use subcommands
+	argparser.add_argument(
+		'--stats', action='store_true', help='Generate statistics for an input GeoGuessr map'
+	)
+	# TODO: This help text sucks and needs to be worded better but I was tired when I wrote it, sorry
+	argparser.add_argument(
+		'--stats-regions',
+		type=Path,
+		help='With --stats, path to GeoJSON etc file containing regions to count each location in',
+	)
 	# TODO: Arguments for LocationOptions, allow_third_party, etc
-	# TODO: Argument for input_file to be a GeoGuessr map instead, although we could try and autodetect this
 
 	args = argparser.parse_args()
 
@@ -114,6 +129,8 @@ def main():
 			args.name_col,
 			args.radius,
 			as_region_map=args.region_map or False,
+			stats=args.stats or False,
+			stats_region_file=args.stats_regions,
 		)
 	)
 
