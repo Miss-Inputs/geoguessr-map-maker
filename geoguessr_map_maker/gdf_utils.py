@@ -32,6 +32,6 @@ def count_points_in_each_region(
 		regions[[name_col, 'geometry']], how='left'
 	)
 	assert isinstance(gdf, geopandas.GeoDataFrame), type(gdf)
-	sizes = gdf.groupby(name_col).size()
+	sizes = gdf.groupby(name_col, dropna=False, observed=False).size()
 	assert isinstance(sizes, pandas.Series), type(sizes)
 	return sizes.sort_values(ascending=False)
