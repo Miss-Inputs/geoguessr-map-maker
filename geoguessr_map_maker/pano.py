@@ -1,5 +1,6 @@
 """Additional methods and properties for StreetViewPanorama."""
 
+import logging
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
@@ -7,6 +8,8 @@ from streetlevel import streetview
 
 if TYPE_CHECKING:
 	import aiohttp
+
+logger = logging.getLogger(__name__)
 
 address_component_place_types = {
 	# https://developers.google.com/maps/documentation/cloud-customization/taxonomy
@@ -86,6 +89,11 @@ class Panorama:
 	has_depth: bool = False
 	"""If the pano would have a depth map (if and only if we requested it)"""
 
+	@property
+	def has_full_info(self) -> bool:
+		"""If this panorama has all the information that can be returned (disregarding depth map)"""
+		return self.has_extended_info and self.has_places
+
 
 async def ensure_full_pano(
 	pano: Panorama,
@@ -94,10 +102,30 @@ async def ensure_full_pano(
 	*,
 	download_depth: bool = False,
 ) -> Panorama:
-	full_pano = await streetview.find_panorama_by_id_async(
-		pano.pano.id, session, locale=locale, download_depth=download_depth
-	)
-	# TODO: Handle exception if depth map is borked, still set has_depth=True because it would then have as much depth map as it can have
+	if not download_depth and pano.has_full_info:
+		return pano
+	try:
+		full_pano = await streetview.find_panorama_by_id_async(
+			pano.pano.id, session, locale=locale, download_depth=download_depth
+		)
+	except (ValueError, IndexError) as e:
+		# Sometimes depth maps are broken (this also causes problems in GeoGuessr because you can only move with the arrows, so it's just a thing that happens I guess)
+		if not download_depth:
+			raise
+		logger.info(
+			'Tried to get depth map for pano %s but encountered an error: %s %s',
+			pano.pano.id,
+			type(e),
+			e,
+		)
+		# We still set has_depth to True, because it has as much depth map as it can possibly have
+		full_pano = (
+			pano.pano
+			if pano.has_full_info
+			else await streetview.find_panorama_by_id_async(
+				pano.pano.id, session, download_depth=False, locale=locale
+			)
+		)
 	if full_pano:
 		return Panorama(full_pano, has_places=True, has_depth=download_depth)
 	# This probably shouldn't happen
