@@ -7,10 +7,9 @@ import shapely
 from shapely.geometry.base import BaseGeometry
 from tqdm.auto import tqdm
 
-from geoguessr_map_maker.regions import iter_boundaries
-
 from .coordinate import Coordinate, find_point, pano_to_coordinate
 from .pano_finder import LocationOptions, find_locations_in_geometry
+from .regions import iter_boundaries
 
 if TYPE_CHECKING:
 	import aiohttp

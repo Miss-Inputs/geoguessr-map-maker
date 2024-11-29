@@ -16,7 +16,7 @@ from .coordinate import Coordinate, find_point
 if TYPE_CHECKING:
 	import aiohttp
 
-	from geoguessr_map_maker.pano_finder import LocationOptions
+	from .pano_finder import LocationOptions
 
 
 class Stop:
@@ -52,9 +52,7 @@ async def find_stop(
 	*,
 	allow_third_party: bool = False,
 ):
-	extra = {
-		k: v for k, v in stop.row.items() if k not in {'stop_lat', 'stop_lon'} and v
-	}
+	extra = {k: v for k, v in stop.row.items() if k not in {'stop_lat', 'stop_lon'} and v}
 	if 'stop_code' in extra and extra['stop_id'] == extra['stop_code']:
 		del extra['stop_code']
 	return await find_point(

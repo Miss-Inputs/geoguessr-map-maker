@@ -1,6 +1,6 @@
 from collections.abc import Collection, Mapping
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, Any, cast
+from typing import TYPE_CHECKING, Any
 
 import numpy
 
@@ -56,12 +56,15 @@ def pano_to_coordinate(
 			raise ValueError('original_lat must be provided if using return_original_point')
 		if original_lng is None:
 			raise ValueError('original_lng must be provided if using return_original_point')
+		# Ensure the camera is looking at the thing when you get the location
+		bearing_to_point = get_bearing(
+			pano.lat, pano.lon, original_lat, original_lng, radians=False
+		)
 		return Coordinate(
 			original_lat,
 			original_lng,
 			pano.id,
-			# Ensure the camera is looking at the thing when you get the location
-			cast(float, get_bearing(pano.lat, pano.lon, original_lat, original_lng, radians=False)),
+			bearing_to_point,
 			pano.pitch,
 			None,
 			pano.country_code,

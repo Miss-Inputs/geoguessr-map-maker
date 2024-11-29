@@ -8,12 +8,11 @@ import aiofiles
 import aiohttp
 from tqdm.contrib.logging import logging_redirect_tqdm
 
-from geoguessr_map_maker.gdf_utils import read_geo_file
-from geoguessr_map_maker.stats import get_stats
-
 from .coordinate import CoordinateMap
+from .gdf_utils import read_geo_file
 from .geodataframes import find_locations_in_geodataframe, gdf_to_regions_map
 from .gtfs import find_stops, load_gtfs_stops
+from .stats import get_stats
 
 
 class InputFileType(Enum):
