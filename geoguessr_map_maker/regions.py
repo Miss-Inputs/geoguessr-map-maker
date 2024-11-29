@@ -33,5 +33,5 @@ def polygon_to_geoguessr_map(
 	for ring in iter_boundaries(poly):
 		coords = [{'lat': y, 'lng': x} for x, y in ring.coords]
 		regions.append({'coordinates': coords})
-	# TODO: Is this all we need?
+	# This seems to be all that's needed
 	return {'mode': 'regions', 'regions': regions}
