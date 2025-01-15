@@ -29,7 +29,7 @@ def count_points_in_each_region(
 	if not isinstance(points, (list, numpy.ndarray)):
 		points = list(points)
 	gs = geopandas.GeoSeries(points, crs=regions.crs)  # type: ignore[overload]
-	gdf = cast(geopandas.GeoDataFrame, gs.to_frame()).sjoin(
+	gdf = cast('geopandas.GeoDataFrame', gs.to_frame()).sjoin(
 		regions[[name_col, 'geometry']], how='left'
 	)
 	assert isinstance(gdf, geopandas.GeoDataFrame), type(gdf)

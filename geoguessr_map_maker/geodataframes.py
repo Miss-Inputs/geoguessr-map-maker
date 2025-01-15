@@ -8,25 +8,21 @@ from shapely.geometry.base import BaseGeometry
 from tqdm.auto import tqdm
 
 from .coordinate import Coordinate, find_point, pano_to_coordinate
-from .pano_finder import LocationOptions, find_locations_in_geometry
 from .regions import iter_boundaries
 
 if TYPE_CHECKING:
-	import aiohttp
 	import geopandas
+
+	from .pano_finder import PanoFinder
 
 logger = logging.getLogger(__name__)
 
 
 async def find_locations_in_row(
+	finder: 'PanoFinder',
 	row: 'pandas.Series',
-	session: 'aiohttp.ClientSession',
-	radius: int,
-	options: LocationOptions | None = None,
 	name: str | None = None,
-	locale: str = 'en',
 	*,
-	allow_third_party: bool = False,
 	return_original_point: bool = True,
 ):
 	"""
@@ -46,36 +42,24 @@ async def find_locations_in_row(
 		loc = await find_point(
 			geometry.y,
 			geometry.x,
-			session,
-			radius,
+			finder.session,
+			finder.radius,
 			extra,
-			allow_third_party=allow_third_party,
+			allow_third_party=finder.search_third_party,
 			return_original_point=return_original_point,
 		)
 		if loc:
 			yield loc
 	else:
-		async for pano in find_locations_in_geometry(
-			geometry,
-			session,
-			radius,
-			name,
-			allow_third_party=allow_third_party,
-			locale=locale,
-			options=options,
-		):
+		async for pano in finder.find_locations_in_geometry(geometry, name):
 			# TODO: Do we always want to keep the original pano's heading/pitch? Or all of the row's data?
 			yield pano_to_coordinate(pano.pano, extra=extra, return_original_point=False)
 
 
 async def find_locations_in_geodataframe(
+	finder: 'PanoFinder',
 	gdf: 'geopandas.GeoDataFrame',
-	session: 'aiohttp.ClientSession',
-	radius: int = 20,
-	options: LocationOptions | None = None,
 	name_col: Hashable | None = None,
-	*,
-	allow_third_party: bool = False,
 ) -> Collection[Coordinate]:
 	"""
 	Parameters:
@@ -90,9 +74,7 @@ async def find_locations_in_geodataframe(
 			name = str(index)
 			t.set_postfix(index=index)
 
-		found = find_locations_in_row(
-			row, session, radius, options, name, allow_third_party=allow_third_party
-		)
+		found = find_locations_in_row(finder, row, name)
 		locations = {location.pano_id: location async for location in found}
 		logger.info('Found %d locations in %s', len(locations), name)
 		coords += locations.values()

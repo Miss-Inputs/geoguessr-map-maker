@@ -8,6 +8,8 @@ import aiofiles
 import aiohttp
 from tqdm.contrib.logging import logging_redirect_tqdm
 
+from geoguessr_map_maker.pano_finder import LatticeFinder
+
 from .coordinate import CoordinateMap
 from .gdf_utils import read_geo_file
 from .geodataframes import find_locations_in_geodataframe, gdf_to_regions_map
@@ -64,9 +66,8 @@ async def amain(
 			return
 
 		async with aiohttp.ClientSession() as session:
-			locations = await find_locations_in_geodataframe(
-				gdf, session, radius, name_col=name_col
-			)
+			finder = LatticeFinder(session, radius)
+			locations = await find_locations_in_geodataframe(finder, gdf, name_col)
 	elif input_file_type == InputFileType.GTFS:
 		stops = await load_gtfs_stops(input_file)
 		async with aiohttp.ClientSession() as session:
