@@ -85,7 +85,7 @@ def main():
 	argparser.add_argument(
 		'output_file',
 		type=Path,
-		help='Path to output file, or default to input_file with .geojson suffix',
+		help='Path to output file, or default to input_file with .json suffix',
 		nargs='?',
 	)
 	argparser.add_argument(
