@@ -3,12 +3,13 @@ import json
 from argparse import ArgumentParser
 from enum import Enum, auto
 from pathlib import Path
+from typing import Any
 
 import aiofiles
 import aiohttp
 from tqdm.contrib.logging import logging_redirect_tqdm
 
-from geoguessr_map_maker.pano_finder import LatticeFinder
+from geoguessr_map_maker.pano_finder import LatticeFinder, LocationOptions
 
 from .coordinate import CoordinateMap
 from .gdf_utils import read_geo_file
@@ -26,7 +27,7 @@ class InputFileType(Enum):
 	"""GTFS feed"""
 
 
-async def _write_json(path: Path, data):
+async def _write_json(path: Path, data: Any):
 	map_json = json.dumps(data, indent='\t')
 	async with aiofiles.open(path, mode='w', encoding='utf-8') as f:
 		await f.write(map_json)
@@ -39,6 +40,7 @@ async def amain(
 	name_col: str | None = None,
 	radius: int | None = None,
 	*,
+	allow_unofficial: bool = False,
 	as_region_map: bool = False,
 	stats: bool = False,
 	stats_region_file: Path | None = None,
@@ -56,6 +58,7 @@ async def amain(
 		output_file = input_file.with_suffix('.json')
 	if radius is None:
 		radius = 20
+	options = LocationOptions()
 
 	if input_file_type == InputFileType.GeoJSON:
 		gdf = read_geo_file(input_file)
@@ -66,16 +69,22 @@ async def amain(
 			return
 
 		async with aiohttp.ClientSession() as session:
-			finder = LatticeFinder(session, radius)
+			finder = LatticeFinder(session, radius, options, search_third_party=allow_unofficial)
 			locations = await find_locations_in_geodataframe(finder, gdf, name_col)
 	elif input_file_type == InputFileType.GTFS:
 		stops = await load_gtfs_stops(input_file)
 		async with aiohttp.ClientSession() as session:
-			locations = [loc async for loc in find_stops(stops, session, radius)]
+			locations = [
+				loc
+				async for loc in find_stops(
+					stops, session, radius, options, allow_third_party=allow_unofficial
+				)
+			]
 	else:
 		raise ValueError(f'Whoops I have not implemented {input_file_type} yet')
 
 	geoguessr_map = CoordinateMap(locations, input_file.stem)
+	print(f'Found {len(locations)} locations')
 	await _write_json(output_file, geoguessr_map.to_dict())
 
 
@@ -106,6 +115,9 @@ def main():
 		const=InputFileType.GTFS,
 		dest='file_type',
 		help='Read input_file as a GTFS feed and make a map of the stops',
+	)
+	argparser.add_argument(
+		'--allow-unofficial', action='store_true', help='Allow unofficial coverage'
 	)
 	# TODO: Whoops we should probably use subcommands
 	argparser.add_argument(
