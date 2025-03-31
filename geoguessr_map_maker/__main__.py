@@ -140,6 +140,7 @@ def main():
 			args.output_file,
 			args.name_col,
 			args.radius,
+			allow_unofficial=args.allow_unofficial,
 			as_region_map=args.region_map or False,
 			stats=args.stats or False,
 			stats_region_file=args.stats_regions,
