@@ -153,6 +153,7 @@ async def find_location(
 			)
 			if not pano or not await is_panorama_wanted(pano, session, options):
 				return None
+			return pano
 		return None
 
 	return pano
