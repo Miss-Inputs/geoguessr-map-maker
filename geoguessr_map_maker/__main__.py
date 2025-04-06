@@ -33,7 +33,7 @@ async def _write_json(path: Path, data: Any):
 		await f.write(map_json)
 
 
-async def amain(
+async def generate(
 	input_file: Path,
 	input_file_type: InputFileType,
 	output_file: Path | None = None,
@@ -42,15 +42,9 @@ async def amain(
 	*,
 	allow_unofficial: bool = False,
 	as_region_map: bool = False,
-	stats: bool = False,
-	stats_region_file: Path | None = None,
 ):
 	# TODO: Allow input_file to not actually be a filesystem path, because geopandas read_file can get URLs and that sort of thing
 	# TODO: Autodetect input_file_type, e.g. if zip (and contains stops.txt) then it should be GTFS
-	if stats:
-		# TODO: Another argument to output raw numbers instead of percentages, but this is overcomplicated enough aaaaa
-		await get_stats(input_file, stats_region_file, name_col, output_file)
-		return
 
 	if output_file is None:
 		# TODO: Avoid clobbering output_file
@@ -88,64 +82,79 @@ async def amain(
 	await _write_json(output_file, geoguessr_map.to_dict())
 
 
+async def stats(
+	input_file: Path,
+	stats_region_file: Path | None = None,
+	name_col: str | None = None,
+	output_file: Path | None = None,
+):
+	# TODO: Another argument to output raw numbers instead of percentages, but this is overcomplicated enough aaaaa
+	await get_stats(input_file, stats_region_file, name_col, output_file)
+
+
 def main():
 	argparser = ArgumentParser()
-	argparser.add_argument('input_file', type=Path, help='File to convert')
-	argparser.add_argument(
+	subparsers = argparser.add_subparsers(dest='subcommand', required=False)
+
+	gen = subparsers.add_parser('generate', help='Generate a map', aliases=['gen'])
+	gen.add_argument('input_file', type=Path, help='File to convert')
+	# TODO: Clean up output_file handling
+	gen.add_argument(
 		'output_file',
 		type=Path,
 		help='Path to output file, or default to input_file with .json suffix',
 		nargs='?',
 	)
-	argparser.add_argument(
+	gen.add_argument(
 		'--name-col',
 		help='Column in input_file to interpret as the name of each row, for logging/progress purposes',
 	)
-	argparser.add_argument(
+	gen.add_argument(
 		'--radius', type=int, help='Search radius for panoramas in metres, default 20m', default=20
 	)
-	argparser.add_argument(
+	gen.add_argument(
 		'--region-map',
 		action='store_true',
-		help='Generate a region map instead of finding coordinates in each area',
+		help='Generate a region map instead of finding coordinates in each area, ignoring arguments like radius etc.',
 	)
-	argparser.add_argument(
+	gen.add_argument(
 		'--from-gtfs',
 		action='store_const',
 		const=InputFileType.GTFS,
 		dest='file_type',
 		help='Read input_file as a GTFS feed and make a map of the stops',
 	)
-	argparser.add_argument(
-		'--allow-unofficial', action='store_true', help='Allow unofficial coverage'
-	)
-	# TODO: Whoops we should probably use subcommands
-	argparser.add_argument(
-		'--stats', action='store_true', help='Generate statistics for an input GeoGuessr map'
-	)
-	# TODO: This help text sucks and needs to be worded better but I was tired when I wrote it, sorry
-	argparser.add_argument(
+	# TODO: Arguments for LocationOptions, etc
+	gen.add_argument('--allow-unofficial', action='store_true', help='Allow unofficial coverage')
+	stats = subparsers.add_parser('stats', help='Generate statistics for an input GeoGuessr map')
+	stats.add_argument('input_file', type=Path, help='File to generate stats for')
+	stats.add_argument(
 		'--stats-regions',
 		type=Path,
-		help='With --stats, path to GeoJSON etc file containing regions to count each location in',
+		help='Path to GeoJSON etc file containing regions to count each location in',
 	)
-	# TODO: Arguments for LocationOptions, allow_third_party, etc
+	stats.add_argument(
+		'--name-col', help='Column in stats_regions to interpret as the name of each row, or "name"'
+	)
+	stats.add_argument(
+		'output_file', type=Path, help='Path to output file, or print instead', nargs='?'
+	)
 
 	args = argparser.parse_args()
-
-	asyncio.run(
-		amain(
-			args.input_file,
-			args.file_type or InputFileType.GeoJSON,
-			args.output_file,
-			args.name_col,
-			args.radius,
-			allow_unofficial=args.allow_unofficial,
-			as_region_map=args.region_map or False,
-			stats=args.stats or False,
-			stats_region_file=args.stats_regions,
+	if args.subcommand == 'generate':
+		asyncio.run(
+			generate(
+				args.input_file,
+				args.file_type or InputFileType.GeoJSON,
+				args.output_file,
+				args.name_col,
+				args.radius,
+				allow_unofficial=args.allow_unofficial,
+				as_region_map=args.region_map or False,
+			)
 		)
-	)
+	elif args.subcommand == 'stats':
+		asyncio.run(get_stats(args.input_file, args.stats_regions, args.name_col, args.output_file))
 
 
 with logging_redirect_tqdm():
