@@ -1,3 +1,4 @@
+import asyncio
 from collections.abc import Iterable
 from pathlib import Path
 from typing import TYPE_CHECKING, cast
@@ -12,7 +13,6 @@ if TYPE_CHECKING:
 
 
 def read_geo_file(path: Path):
-	#TODO: Ideally some kind of async version (even if it just runs in a thread or something) as this can be slow with large files
 	with (
 		path.open('rb') as f,
 		tqdm.wrapattr(f, 'read', total=path.stat().st_size, desc=f'Reading {path}') as t,
@@ -22,6 +22,8 @@ def read_geo_file(path: Path):
 			raise TypeError(f'{path} contains {type(gdf)}, expected GeoDataFrame')
 		return gdf
 
+async def read_geo_file_async(path: Path):
+	return await asyncio.to_thread(read_geo_file, path)
 
 def count_points_in_each_region(
 	points: Iterable['Point'], regions: geopandas.GeoDataFrame, name_col: str

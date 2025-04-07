@@ -12,7 +12,7 @@ from tqdm.contrib.logging import logging_redirect_tqdm
 from geoguessr_map_maker.pano_finder import LatticeFinder, LocationOptions
 
 from .coordinate import CoordinateMap
-from .gdf_utils import read_geo_file
+from .gdf_utils import read_geo_file_async
 from .geodataframes import find_locations_in_geodataframe, gdf_to_regions_map
 from .gtfs import find_stops, load_gtfs_stops
 from .stats import StatsType, print_stats
@@ -55,7 +55,7 @@ async def generate(
 	options = LocationOptions()
 
 	if input_file_type == InputFileType.GeoJSON:
-		gdf = read_geo_file(input_file)
+		gdf = await read_geo_file_async(input_file)
 		if name_col is None and 'name' in gdf.columns:
 			name_col = 'name'
 		if as_region_map:

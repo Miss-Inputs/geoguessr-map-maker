@@ -10,7 +10,7 @@ import pandas
 import shapely
 from geopandas import GeoDataFrame
 
-from .gdf_utils import count_points_in_each_region, read_geo_file
+from .gdf_utils import count_points_in_each_region, read_geo_file_async
 
 
 async def _read_json(path: Path):
@@ -22,7 +22,7 @@ async def _read_json(path: Path):
 CoordinateList = Sequence[Mapping[str, Any]]
 
 
-def get_region_stats(
+async def get_region_stats(
 	coords: CoordinateList,
 	regions_file: Path | GeoDataFrame,
 	regions_name_col: str | None = None,
@@ -40,7 +40,7 @@ def get_region_stats(
 		Series of int (float if as_percentage is True) with a row for each region, the name being the index, and the count/percentage as values
 	"""
 	regions = (
-		regions_file if isinstance(regions_file, GeoDataFrame) else read_geo_file(regions_file)
+		regions_file if isinstance(regions_file, GeoDataFrame) else await read_geo_file_async(regions_file)
 	)
 	if regions_name_col is None:
 		regions_name_col = regions.columns.drop('geometry')[0]
@@ -70,7 +70,7 @@ class StatsType(Enum):
 	"""Use a GeoJSON (or other compatible) file and count how many coordinates are inside each region"""
 
 
-def get_stats(
+async def get_stats(
 	coords: CoordinateList,
 	stats_type: StatsType,
 	regions_file: Path | GeoDataFrame | None,
@@ -83,7 +83,7 @@ def get_stats(
 	if stats_type == StatsType.Regions:
 		if regions_file is None:
 			raise ValueError('Cannot use region stats without a regions file')
-		return get_region_stats(coords, regions_file, regions_name_col, as_percentage=as_percentage)
+		return await get_region_stats(coords, regions_file, regions_name_col, as_percentage=as_percentage)
 	raise ValueError(f'Unhandled stats type: {stats_type}')
 
 
@@ -109,7 +109,7 @@ async def get_stats_for_file(
 	as_percentage: bool = True,
 ):
 	coords = await _read_coords_from_file(file)
-	return get_stats(
+	return await get_stats(
 		coords, stats_type, regions_file, regions_name_col, as_percentage=as_percentage
 	)
 
