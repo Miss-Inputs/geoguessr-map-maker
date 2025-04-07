@@ -145,7 +145,13 @@ def main():
 		'stats', help='Generate statistics for an input GeoGuessr map'
 	)
 	stats_parser.add_argument('input_file', type=Path, help='File to generate stats for')
-	stats_parser.add_argument('type', nargs='?', help=StatsType.__doc__, choices=StatsType._member_names_, default='CountryCode')
+	stats_parser.add_argument(
+		'type',
+		nargs='?',
+		help=StatsType.__doc__,
+		choices=StatsType._member_names_,
+		default='CountryCode',
+	)
 	stats_parser.add_argument(
 		'--regions-file',
 		type=Path,

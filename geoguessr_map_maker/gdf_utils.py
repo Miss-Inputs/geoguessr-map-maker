@@ -12,7 +12,7 @@ if TYPE_CHECKING:
 	from shapely import Point
 
 
-def read_geo_file(path: Path):
+def read_geo_file(path: Path) -> geopandas.GeoDataFrame:
 	with (
 		path.open('rb') as f,
 		tqdm.wrapattr(f, 'read', total=path.stat().st_size, desc=f'Reading {path}') as t,
@@ -22,7 +22,7 @@ def read_geo_file(path: Path):
 			raise TypeError(f'{path} contains {type(gdf)}, expected GeoDataFrame')
 		return gdf
 
-async def read_geo_file_async(path: Path):
+async def read_geo_file_async(path: Path) -> geopandas.GeoDataFrame:
 	return await asyncio.to_thread(read_geo_file, path)
 
 def count_points_in_each_region(

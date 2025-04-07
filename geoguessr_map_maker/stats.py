@@ -40,7 +40,9 @@ async def get_region_stats(
 		Series of int (float if as_percentage is True) with a row for each region, the name being the index, and the count/percentage as values
 	"""
 	regions = (
-		regions_file if isinstance(regions_file, GeoDataFrame) else await read_geo_file_async(regions_file)
+		regions_file
+		if isinstance(regions_file, GeoDataFrame)
+		else await read_geo_file_async(regions_file)
 	)
 	if regions_name_col is None:
 		regions_name_col = regions.columns.drop('geometry')[0]
@@ -83,7 +85,9 @@ async def get_stats(
 	if stats_type == StatsType.Regions:
 		if regions_file is None:
 			raise ValueError('Cannot use region stats without a regions file')
-		return await get_region_stats(coords, regions_file, regions_name_col, as_percentage=as_percentage)
+		return await get_region_stats(
+			coords, regions_file, regions_name_col, as_percentage=as_percentage
+		)
 	raise ValueError(f'Unhandled stats type: {stats_type}')
 
 
@@ -122,7 +126,7 @@ async def print_stats(
 	output_file: Path | None = None,
 	*,
 	as_percentage: bool = True,
-):
+) -> None:
 	stats = await get_stats_for_file(
 		file, stats_type, regions_file, regions_name_col, as_percentage=as_percentage
 	)
