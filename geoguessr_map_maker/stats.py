@@ -1,12 +1,14 @@
 import json
 from collections import Counter
 from collections.abc import Mapping, Sequence
+from enum import Enum, auto
 from pathlib import Path
 from typing import Any
 
 import aiofiles
 import pandas
 import shapely
+from geopandas import GeoDataFrame
 
 from .gdf_utils import count_points_in_each_region, read_geo_file
 
@@ -22,7 +24,7 @@ CoordinateList = Sequence[Mapping[str, Any]]
 
 def get_region_stats(
 	coords: CoordinateList,
-	regions_file: Path,
+	regions_file: Path | GeoDataFrame,
 	regions_name_col: str | None = None,
 	*,
 	as_percentage: bool = True,
@@ -33,8 +35,13 @@ def get_region_stats(
 		regions_file: Path to GeoJSON/etc (anything readable by geopandas)
 		regions_name_col: Column name in regions_file to use, or the first column if omitted
 		as_percentage: Whether to return results as a percentage of total points, instead of a count
+
+	Returns:
+		Series of int (float if as_percentage is True) with a row for each region, the name being the index, and the count/percentage as values
 	"""
-	regions = read_geo_file(regions_file)
+	regions = (
+		regions_file if isinstance(regions_file, GeoDataFrame) else read_geo_file(regions_file)
+	)
 	if regions_name_col is None:
 		regions_name_col = regions.columns.drop('geometry')[0]
 	points = shapely.points([(c['lng'], c['lat']) for c in coords])
@@ -45,6 +52,10 @@ def get_region_stats(
 
 
 def get_country_code_stats(coords: CoordinateList, *, as_percentage: bool = True):
+	"""
+	Returns:
+		Series of int (float if as_percentage is True) with a row for each country, the country code being the index, and the count/percentage as values
+	"""
 	counter = Counter(c.get('countryCode') for c in coords)
 	stats = pandas.Series(counter).sort_values(ascending=False)
 	if as_percentage:
@@ -52,14 +63,31 @@ def get_country_code_stats(coords: CoordinateList, *, as_percentage: bool = True
 	return stats
 
 
-async def get_stats(
-	file: Path,
-	regions_file: Path | None = None,
-	regions_name_col: str | None = None,
-	output_file: Path | None = None,
+class StatsType(Enum):
+	CountryCode = auto()
+	"""Use the country code in each coordinate, generally copied from the panorama metadata and hence using Google's borders"""
+	Regions = auto()
+	"""Use a GeoJSON (or other compatible) file and count how many coordinates are inside each region"""
+
+
+def get_stats(
+	coords: CoordinateList,
+	stats_type: StatsType,
+	regions_file: Path | GeoDataFrame | None,
+	regions_name_col: str | None,
 	*,
 	as_percentage: bool = True,
 ):
+	if stats_type == StatsType.CountryCode:
+		return get_country_code_stats(coords, as_percentage=as_percentage)
+	if stats_type == StatsType.Regions:
+		if regions_file is None:
+			raise ValueError('Cannot use region stats without a regions file')
+		return get_region_stats(coords, regions_file, regions_name_col, as_percentage=as_percentage)
+	raise ValueError(f'Unhandled stats type: {stats_type}')
+
+
+async def _read_coords_from_file(file: Path):
 	map_data = await _read_json(file)
 	if isinstance(map_data, list):
 		coords = map_data
@@ -69,13 +97,35 @@ async def get_stats(
 		raise TypeError(f'Loading {file} as map failed, map_data is {type(map_data)}')
 	if not coords:
 		raise ValueError(f'{file} contains no coordinates')
+	return coords
 
-	if regions_file:
-		stats = get_region_stats(
-			coords, regions_file, regions_name_col, as_percentage=as_percentage
-		)
-	else:
-		stats = get_country_code_stats(coords, as_percentage=as_percentage)
+
+async def get_stats_for_file(
+	file: Path,
+	stats_type: StatsType,
+	regions_file: Path | GeoDataFrame | None,
+	regions_name_col: str | None,
+	*,
+	as_percentage: bool = True,
+):
+	coords = await _read_coords_from_file(file)
+	return get_stats(
+		coords, stats_type, regions_file, regions_name_col, as_percentage=as_percentage
+	)
+
+
+async def print_stats(
+	file: Path,
+	stats_type: StatsType,
+	regions_file: Path | None = None,
+	regions_name_col: str | None = None,
+	output_file: Path | None = None,
+	*,
+	as_percentage: bool = True,
+):
+	stats = await get_stats_for_file(
+		file, stats_type, regions_file, regions_name_col, as_percentage=as_percentage
+	)
 
 	if output_file:
 		# TODO: To a different format if output extension is not csv

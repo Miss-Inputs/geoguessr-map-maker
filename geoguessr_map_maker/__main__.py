@@ -1,6 +1,6 @@
 import asyncio
 import json
-from argparse import ArgumentParser
+from argparse import ArgumentParser, BooleanOptionalAction
 from enum import Enum, auto
 from pathlib import Path
 from typing import Any
@@ -15,7 +15,7 @@ from .coordinate import CoordinateMap
 from .gdf_utils import read_geo_file
 from .geodataframes import find_locations_in_geodataframe, gdf_to_regions_map
 from .gtfs import find_stops, load_gtfs_stops
-from .stats import get_stats
+from .stats import StatsType, print_stats
 
 
 class InputFileType(Enum):
@@ -84,40 +84,52 @@ async def generate(
 
 async def stats(
 	input_file: Path,
+	stats_type: str | StatsType,
 	stats_region_file: Path | None = None,
 	name_col: str | None = None,
-	output_file: Path | None = None,
+	output_file: str | Path | None = None,
+	*,
+	as_percentage: bool = True,
 ):
-	# TODO: Another argument to output raw numbers instead of percentages, but this is overcomplicated enough aaaaa
-	await get_stats(input_file, stats_region_file, name_col, output_file)
+	if isinstance(stats_type, str):
+		stats_type = StatsType[stats_type]
+	output_file = Path(output_file) if output_file else None  # convert empty string
+	await print_stats(
+		input_file,
+		stats_type,
+		stats_region_file,
+		name_col,
+		output_file,
+		as_percentage=as_percentage,
+	)
 
 
 def main():
 	argparser = ArgumentParser()
 	subparsers = argparser.add_subparsers(dest='subcommand', required=False)
 
-	gen = subparsers.add_parser('generate', help='Generate a map', aliases=['gen'])
-	gen.add_argument('input_file', type=Path, help='File to convert')
+	gen_parser = subparsers.add_parser('generate', help='Generate a map', aliases=['gen'])
+	gen_parser.add_argument('input_file', type=Path, help='File to convert')
 	# TODO: Clean up output_file handling
-	gen.add_argument(
+	gen_parser.add_argument(
 		'output_file',
 		type=Path,
 		help='Path to output file, or default to input_file with .json suffix',
 		nargs='?',
 	)
-	gen.add_argument(
+	gen_parser.add_argument(
 		'--name-col',
 		help='Column in input_file to interpret as the name of each row, for logging/progress purposes',
 	)
-	gen.add_argument(
+	gen_parser.add_argument(
 		'--radius', type=int, help='Search radius for panoramas in metres, default 20m', default=20
 	)
-	gen.add_argument(
+	gen_parser.add_argument(
 		'--region-map',
 		action='store_true',
 		help='Generate a region map instead of finding coordinates in each area, ignoring arguments like radius etc.',
 	)
-	gen.add_argument(
+	gen_parser.add_argument(
 		'--from-gtfs',
 		action='store_const',
 		const=InputFileType.GTFS,
@@ -125,19 +137,31 @@ def main():
 		help='Read input_file as a GTFS feed and make a map of the stops',
 	)
 	# TODO: Arguments for LocationOptions, etc
-	gen.add_argument('--allow-unofficial', action='store_true', help='Allow unofficial coverage')
-	stats = subparsers.add_parser('stats', help='Generate statistics for an input GeoGuessr map')
-	stats.add_argument('input_file', type=Path, help='File to generate stats for')
-	stats.add_argument(
-		'--stats-regions',
+	gen_parser.add_argument(
+		'--allow-unofficial', action='store_true', help='Allow unofficial coverage'
+	)
+
+	stats_parser = subparsers.add_parser(
+		'stats', help='Generate statistics for an input GeoGuessr map'
+	)
+	stats_parser.add_argument('input_file', type=Path, help='File to generate stats for')
+	stats_parser.add_argument('type', nargs='?', help=StatsType.__doc__, choices=StatsType._member_names_, default='CountryCode')
+	stats_parser.add_argument(
+		'--regions-file',
 		type=Path,
 		help='Path to GeoJSON etc file containing regions to count each location in',
 	)
-	stats.add_argument(
-		'--name-col', help='Column in stats_regions to interpret as the name of each row, or "name"'
+	stats_parser.add_argument(
+		'--name-col',
+		help='Column in --regions-file to interpret as the name of each row, or the first column if not specified',
 	)
-	stats.add_argument(
-		'output_file', type=Path, help='Path to output file, or print instead', nargs='?'
+	stats_parser.add_argument(
+		'output_file', type=str, help='Path to output file, or print instead', nargs='?', default=''
+	)
+	stats_parser.add_argument(
+		'--as-percentage',
+		action=BooleanOptionalAction,
+		help='Output distribution as a percentage of total locations instead of counts',
 	)
 
 	args = argparser.parse_args()
@@ -154,7 +178,16 @@ def main():
 			)
 		)
 	elif args.subcommand == 'stats':
-		asyncio.run(get_stats(args.input_file, args.stats_regions, args.name_col, args.output_file))
+		asyncio.run(
+			stats(
+				args.input_file,
+				args.type,
+				args.regions_file,
+				args.name_col,
+				args.output_file,
+				as_percentage=args.as_percentage,
+			)
+		)
 
 
 with logging_redirect_tqdm():
