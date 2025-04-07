@@ -208,7 +208,7 @@ class PanoFinder(ABC):
 
 	def points_in_multipolygon(self, multipolygon: shapely.MultiPolygon, name: str | None=None) -> Iterable[shapely.Point]:
 		"""By default, same as points_in_polygon, but can be overridden if desired"""
-		return self.points_in_polygon(multipolygon)
+		return self.points_in_polygon(multipolygon, name)
 
 	@abstractmethod
 	def points_in_linear_ring(self, linear_ring: shapely.LinearRing, name: str | None=None) -> Iterable[shapely.Point]: ...
