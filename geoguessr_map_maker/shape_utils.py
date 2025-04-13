@@ -76,6 +76,7 @@ def random_points_in_bbox(
 	random: numpy.random.Generator | int | None = None,
 ) -> numpy.ndarray:
 	"""Uniformly generates several points somewhere in a bounding box."""
+	# TODO: This might lowkey be not actually uniform because of projection shenanigans. Why can't the Earth be square? Dammit
 	if not isinstance(random, numpy.random.Generator):
 		random = numpy.random.default_rng(random)
 	x = random.uniform(min_x, max_x, n)
@@ -102,3 +103,24 @@ def random_point_in_poly(
 		point = random_point_in_bbox(min_x, max_x, min_y, max_y, random)
 		if poly.contains_properly(point):
 			return point
+
+
+def random_points_in_poly(
+	poly: shapely.Polygon | shapely.MultiPolygon,
+	n: int,
+	random: numpy.random.Generator | int | None = None,
+) -> Collection[shapely.Point]:
+	"""
+	Uniformly-ish generates several points somewhere within a polygon.
+	This won't choose anywhere directly on the edge (I think). If poly is a MultiPolygon, it will be inside one of the components, but the distribution of which one might not necesarily be uniform.
+
+	Arguments:
+		poly: shapely Polygon or MultiPolygon
+		random: Optionally a numpy random generator or seed, otherwise default_rng is used
+	"""
+	min_x, max_x, min_y, max_y = poly.bounds
+	shapely.prepare(poly)
+	while True:
+		points = random_points_in_bbox(min_x, max_x, min_y, max_y, n, random)
+		contains = poly.contains_properly(points)
+		return [point for point, contained in zip(points, contains, strict=True) if contained]

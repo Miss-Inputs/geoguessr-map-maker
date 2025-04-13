@@ -132,13 +132,13 @@ async def ensure_full_pano(
 	return pano
 
 
-async def is_trekker(pano: Panorama, session: 'aiohttp.ClientSession'):
+async def is_trekker(pano: Panorama, session: 'aiohttp.ClientSession') -> bool:
 	if not pano.has_extended_info:
 		pano = await ensure_full_pano(pano, session)
 	return pano.pano.source in {'scout', 'innerspace', 'cultural_institute'}
 
 
-async def is_intersection(pano: Panorama, session: 'aiohttp.ClientSession'):
+async def is_intersection(pano: Panorama, session: 'aiohttp.ClientSession') -> bool:
 	"""Returns true if the panorama appears to be on an intersection.
 
 	Note: May have a false positive if the panorama is on a road curve where the road name changes on one side.

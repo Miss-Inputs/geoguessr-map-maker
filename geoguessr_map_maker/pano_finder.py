@@ -16,7 +16,7 @@ from streetlevel.geo import tile_coord_to_wgs84, wgs84_to_tile_coord
 from tqdm.auto import tqdm
 
 from .pano import Panorama, camera_gen, ensure_full_pano, has_building, is_intersection, is_trekker
-from .shape_utils import get_polygon_lattice
+from .shape_utils import get_polygon_lattice, random_points_in_poly
 
 if TYPE_CHECKING:
 	from shapely.geometry.base import BaseGeometry
@@ -182,7 +182,7 @@ class PanoFinder(ABC):
 	) -> AsyncIterator[Panorama]:
 		for point in tqdm(
 			points,
-			f'Finding locations for {name or 'points'}',
+			f'Finding locations for {name or "points"}',
 			unit='point',
 			leave=False,
 			disable=not self.use_tqdm,
@@ -198,29 +198,43 @@ class PanoFinder(ABC):
 			if pano:
 				yield pano
 
-	def points_in_multipoint(self, multipoint: shapely.MultiPoint, name: str | None=None) -> Iterable[shapely.Point]:
+	def points_in_multipoint(
+		self, multipoint: shapely.MultiPoint, name: str | None = None
+	) -> Iterable[shapely.Point]:
 		return multipoint.geoms
 
 	@abstractmethod
 	def points_in_polygon(
-		self, polygon: shapely.Polygon | shapely.MultiPolygon | shapely.LinearRing, name: str | None=None
+		self, polygon: shapely.Polygon | shapely.MultiPolygon, name: str | None = None
 	) -> Iterable[shapely.Point]: ...
 
-	def points_in_multipolygon(self, multipolygon: shapely.MultiPolygon, name: str | None=None) -> Iterable[shapely.Point]:
+	def points_in_multipolygon(
+		self, multipolygon: shapely.MultiPolygon, name: str | None = None
+	) -> Iterable[shapely.Point]:
 		"""By default, same as points_in_polygon, but can be overridden if desired"""
 		return self.points_in_polygon(multipolygon, name)
 
 	@abstractmethod
-	def points_in_linear_ring(self, linear_ring: shapely.LinearRing, name: str | None=None) -> Iterable[shapely.Point]: ...
+	def points_in_linear_ring(
+		self, linear_ring: shapely.LinearRing, name: str | None = None
+	) -> Iterable[shapely.Point]: ...
 
 	@abstractmethod
-	def points_in_linestring(self, linestring: shapely.LineString, name: str | None=None) -> Iterable[shapely.Point]: ...
+	def points_in_linestring(
+		self, linestring: shapely.LineString, name: str | None = None
+	) -> Iterable[shapely.Point]: ...
 
-	def points_in_mutlilinestring(self, multilinestring: shapely.MultiLineString, name: str | None=None) -> Iterable[shapely.Point]:
+	def points_in_mutlilinestring(
+		self, multilinestring: shapely.MultiLineString, name: str | None = None
+	) -> Iterable[shapely.Point]:
 		"""By default, concatenates the results of points_in_linestring for all lines, but can be overridden"""
-		return itertools.chain.from_iterable(self.points_in_linestring(line) for line in multilinestring.geoms)
+		return itertools.chain.from_iterable(
+			self.points_in_linestring(line) for line in multilinestring.geoms
+		)
 
-	def _points_in_geometry(self, geometry: 'BaseGeometry', name: str | None=None) -> Iterable[shapely.Point]:
+	def _points_in_geometry(
+		self, geometry: 'BaseGeometry', name: str | None = None
+	) -> Iterable[shapely.Point]:
 		if isinstance(geometry, shapely.MultiPoint):
 			return self.points_in_multipoint(geometry, name)
 		if isinstance(geometry, shapely.Polygon):
@@ -233,8 +247,8 @@ class PanoFinder(ABC):
 			return self.points_in_linestring(geometry, name)
 		if isinstance(geometry, shapely.MultiLineString):
 			return self.points_in_mutlilinestring(geometry, name)
+		# Point is handled differently
 		raise NotImplementedError(geometry.geom_type)
-
 
 	async def find_locations_in_geometry(
 		self, geometry: 'BaseGeometry', name: str | None = None
@@ -261,7 +275,7 @@ class PanoFinder(ABC):
 				postfix={'name': name},
 			):
 				async for pano in self.find_locations_in_geometry(
-					#should name here append like the index of the part? mayhaps
+					# should name here append like the index of the part? mayhaps
 					part,
 					name,
 				):
@@ -272,33 +286,84 @@ class PanoFinder(ABC):
 				points = self._points_in_geometry(geometry)
 			except NotImplementedError:
 				logger.warning(
-					'Unhandled geometry type%s: %s', f' in {name}' if name else '', geometry.geom_type
+					'Unhandled geometry type%s: %s',
+					f' in {name}' if name else '',
+					geometry.geom_type,
 				)
 				return
 			else:
 				async for pano in self.find_locations(points, name):
 					yield pano
-	
+
+
 class LatticeFinder(PanoFinder):
 	"""Finds every point in an evenly spaced grid across each polygon."""
-	#TODO: Lattice radius should be a separate parameter, but maybe can default to search radius
-	def points_in_polygon(self, polygon: shapely.Polygon | shapely.MultiPolygon | shapely.LinearRing, name: str | None=None) -> Iterable[shapely.Point]:
+
+	# TODO: Lattice radius should be a separate parameter, but maybe can default to search radius
+	def points_in_polygon(
+		self, polygon: shapely.Polygon | shapely.MultiPolygon, name: str | None = None
+	) -> Iterable[shapely.Point]:
 		points = get_polygon_lattice(polygon, self.radius)
 		if not points:
 			logger.info('No points in %s, trying representative point instead', name or 'polygon')
 			points = (polygon.representative_point(),)
 		return points
-	
-	def points_in_linear_ring(self, linear_ring: shapely.LinearRing, name: str | None = None) -> Iterable[shapely.Point]:
+
+	def points_in_linear_ring(
+		self, linear_ring: shapely.LinearRing, name: str | None = None
+	) -> Iterable[shapely.Point]:
 		points = get_polygon_lattice(linear_ring, self.radius)
 		if not points:
-			logger.info('No points in %s, trying representative point instead', name or 'linear ring')
+			logger.info(
+				'No points in %s, trying representative point instead', name or 'linear ring'
+			)
 			points = (linear_ring.representative_point(),)
 		return points
-	
-	def points_in_linestring(self, linestring: shapely.LineString, name: str | None = None) -> Iterable[shapely.Point]:
-		#TODO: Sample all the points along the line according to the radius
+
+	def points_in_linestring(
+		self, linestring: shapely.LineString, name: str | None = None
+	) -> Iterable[shapely.Point]:
+		# TODO: Sample all the points along the line according to the radius
 		raise NotImplementedError(linestring.geom_type)
+
+
+class RandomFinder(PanoFinder):
+	"""Finds a certain amount of random points in each geometry."""
+
+	# TODO: Command line options to use this
+	# TODO: Ensure this actually finds n points instead of just searching n points, which will be tricky
+
+	def __init__(
+		self,
+		session: 'aiohttp.ClientSession',
+		n: int = 100,
+		options: LocationOptions | None = None,
+		locale: str = 'en',
+		*,
+		search_third_party: bool = False,
+		use_tqdm: bool = True,
+	):
+		self.n = n
+		super().__init__(
+			session, 20, options, locale, search_third_party=search_third_party, use_tqdm=use_tqdm
+		)
+
+	def points_in_polygon(
+		self, polygon: shapely.Polygon | shapely.MultiPolygon, name: str | None = None
+	) -> Iterable[shapely.Point]:
+		return random_points_in_poly(polygon, self.n)
+
+	def points_in_linear_ring(
+		self, linear_ring: shapely.LinearRing, name: str | None = None
+	) -> Iterable[shapely.Point]:
+		return random_points_in_poly(shapely.Polygon(linear_ring), self.n)
+
+	def points_in_linestring(
+		self, linestring: shapely.LineString, name: str | None = None
+	) -> Iterable[shapely.Point]:
+		# TODO: Sample all the points along the line according to the radius
+		raise NotImplementedError(linestring.geom_type)
+
 
 async def get_panos_in_geometry_via_tiles(
 	poly: 'BaseGeometry', session: 'aiohttp.ClientSession', name: str | None = None
