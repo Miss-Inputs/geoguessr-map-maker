@@ -40,6 +40,7 @@ async def generate(
 	name_col: str | None = None,
 	radius: int | None = None,
 	*,
+	reject_gen_1: bool = False,
 	allow_unofficial: bool = False,
 	as_region_map: bool = False,
 ):
@@ -52,7 +53,7 @@ async def generate(
 		output_file = input_file.with_suffix('.json')
 	if radius is None:
 		radius = 20
-	options = LocationOptions()
+	options = LocationOptions(reject_gen_1=reject_gen_1)
 
 	if input_file_type == InputFileType.GeoJSON:
 		gdf = await read_geo_file_async(input_file)
@@ -136,7 +137,13 @@ def main():
 		dest='file_type',
 		help='Read input_file as a GTFS feed and make a map of the stops',
 	)
-	# TODO: Arguments for LocationOptions, etc
+	# TODO: The rest of LocationOptions
+	gen_parser.add_argument(
+		'--allow-gen-1',
+		action=BooleanOptionalAction,
+		help='Allow official gen 1 coverage',
+		default=False,
+	)
 	gen_parser.add_argument(
 		'--allow-unofficial', action='store_true', help='Allow unofficial coverage'
 	)
@@ -179,6 +186,7 @@ def main():
 				args.output_file,
 				args.name_col,
 				args.radius,
+				reject_gen_1=not args.allow_gen_1,
 				allow_unofficial=args.allow_unofficial,
 				as_region_map=args.region_map or False,
 			)
