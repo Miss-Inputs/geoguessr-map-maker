@@ -295,6 +295,23 @@ class PanoFinder(ABC):
 				async for pano in self.find_locations(points, name):
 					yield pano
 
+class PointFinder(PanoFinder):
+	"""Will only find exact points, extracting the coordinates of any geometry that is not a Point."""
+	def points_in_polygon(
+		self, polygon: shapely.Polygon | shapely.MultiPolygon, name: str | None = None
+	) -> Iterable[shapely.Point]:
+		yield from shapely.extract_unique_points(polygon).geoms
+
+	def points_in_linear_ring(
+		self, linear_ring: shapely.LinearRing, name: str | None = None
+	) -> Iterable[shapely.Point]:
+		yield from shapely.extract_unique_points(linear_ring).geoms
+
+	def points_in_linestring(
+		self, linestring: shapely.LineString, name: str | None = None
+	) -> Iterable[shapely.Point]:
+		yield from shapely.extract_unique_points(linestring).geoms
+
 
 class LatticeFinder(PanoFinder):
 	"""Finds every point in an evenly spaced grid across each polygon."""
