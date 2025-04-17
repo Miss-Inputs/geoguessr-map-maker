@@ -23,7 +23,8 @@ async def find_locations_in_row(
 	row: 'pandas.Series',
 	name: str | None = None,
 	*,
-	return_original_point: bool = False,
+	pan_to_original_point: bool | None = None,
+	snap_to_original_point: bool = False,
 ):
 	"""
 	Parameters:
@@ -46,14 +47,20 @@ async def find_locations_in_row(
 			finder.radius,
 			extra,
 			allow_third_party=finder.search_third_party,
-			return_original_point=return_original_point,
+			pan_to_original_point=pan_to_original_point,
+			snap_to_original_point=snap_to_original_point,
 		)
 		if loc:
 			yield loc
 	else:
 		async for pano in finder.find_locations_in_geometry(geometry, name):
 			# TODO: Do we always want to keep the original pano's heading/pitch? Or all of the row's data?
-			yield pano_to_coordinate(pano.pano, extra=extra, return_original_point=False)
+			yield pano_to_coordinate(
+				pano.pano,
+				extra=extra,
+				pan_to_original_point=pan_to_original_point,
+				snap_to_original_point=snap_to_original_point,
+			)
 
 
 async def find_locations_in_geodataframe(
@@ -61,7 +68,8 @@ async def find_locations_in_geodataframe(
 	gdf: 'geopandas.GeoDataFrame',
 	name_col: Hashable | None = None,
 	*,
-	return_original_point: bool = False,
+	pan_to_original_point: bool | None = None,
+	snap_to_original_point: bool = False,
 ) -> Collection[Coordinate]:
 	"""
 	Parameters:
@@ -77,7 +85,11 @@ async def find_locations_in_geodataframe(
 			t.set_postfix(index=index)
 
 		found = find_locations_in_row(
-			finder, row, name, return_original_point=return_original_point
+			finder,
+			row,
+			name,
+			pan_to_original_point=pan_to_original_point,
+			snap_to_original_point=snap_to_original_point,
 		)
 		locations = {location.pano_id: location async for location in found}
 		logger.info('Found %d locations in %s', len(locations), name)

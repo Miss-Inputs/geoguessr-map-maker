@@ -14,6 +14,7 @@ if TYPE_CHECKING:
 
 @dataclass
 class Coordinate:
+	"""Represents an individual list item in the "customCoordinates" field in a GeoGuessr map."""
 	lat: float
 	lng: float
 	pano_id: str | None = None
@@ -49,32 +50,50 @@ def pano_to_coordinate(
 	original_lng: float | None = None,
 	extra: dict[str, Any] | None = None,
 	*,
-	return_original_point: bool = True,
+	pan_to_original_point: bool | None=None,
+	snap_to_original_point: bool = False,
 ):
-	if return_original_point:
+	"""
+	Creates a GeoGuessr map location object from a panorama.
+	
+	Arguments:
+		pan_to_original_point: Whether to pan towards the original point, the default of None means it will do this if original_lat and original_lng are passed in and will not otherwise
+
+	Raises:
+		ValueError: If pan_to_original_point or snap_to_original_point are True but original_lat and original_lng are not provided
+		
+	"""
+	#TODO: Argument to offset panning (e.g. pass in 90 to make a skewed map)
+	#TODO: Argument to override country code
+	if pan_to_original_point is None:
+		pan_to_original_point = original_lat is not None and original_lng is not None
+
+	if pan_to_original_point:
 		if original_lat is None:
-			raise ValueError('original_lat must be provided if using return_original_point')
+			raise ValueError('original_lat must be provided if using pan_to_original_point')
 		if original_lng is None:
-			raise ValueError('original_lng must be provided if using return_original_point')
-		# Ensure the camera is looking at the thing when you get the location
-		bearing_to_point = get_bearing(
+			raise ValueError('original_lng must be provided if using pan_to_original_point')
+		heading = get_bearing(
 			pano.lat, pano.lon, original_lat, original_lng, radians=False
 		)
-		return Coordinate(
-			original_lat,
-			original_lng,
-			pano.id,
-			bearing_to_point,
-			pano.pitch,
-			None,
-			pano.country_code,
-			extra,
-		)
+	else:
+		heading = numpy.degrees(pano.heading)
+
+	lat = pano.lat
+	lng = pano.lon
+	if snap_to_original_point:
+		if original_lat is None:
+			raise ValueError('original_lat must be provided if using pan_to_original_point')
+		if original_lng is None:
+			raise ValueError('original_lng must be provided if using pan_to_original_point')
+		lat = original_lat
+		lng = original_lng
+	
 	return Coordinate(
-		pano.lat,
-		pano.lon,
+		lat,
+		lng,
 		pano.id,
-		numpy.degrees(pano.heading),
+		heading,
 		pano.pitch,
 		None,
 		pano.country_code,
@@ -91,7 +110,8 @@ async def find_point(
 	options: LocationOptions | None = None,
 	*,
 	allow_third_party: bool = False,
-	return_original_point: bool = True,
+	pan_to_original_point: bool | None=None,
+	snap_to_original_point: bool = False,
 ):
 	pano = await find_location(
 		(lat, lng),
@@ -103,7 +123,7 @@ async def find_point(
 	if not pano:
 		return None
 	return pano_to_coordinate(
-		pano.pano, lat, lng, extra, return_original_point=return_original_point
+		pano.pano, lat, lng, extra, pan_to_original_point=pan_to_original_point, snap_to_original_point=snap_to_original_point
 	)
 
 
