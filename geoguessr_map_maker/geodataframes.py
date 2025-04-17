@@ -23,7 +23,7 @@ async def find_locations_in_row(
 	row: 'pandas.Series',
 	name: str | None = None,
 	*,
-	return_original_point: bool = True,
+	return_original_point: bool = False,
 ):
 	"""
 	Parameters:
@@ -60,6 +60,8 @@ async def find_locations_in_geodataframe(
 	finder: 'PanoFinder',
 	gdf: 'geopandas.GeoDataFrame',
 	name_col: Hashable | None = None,
+	*,
+	return_original_point: bool = False,
 ) -> Collection[Coordinate]:
 	"""
 	Parameters:
@@ -74,7 +76,9 @@ async def find_locations_in_geodataframe(
 			name = str(index)
 			t.set_postfix(index=index)
 
-		found = find_locations_in_row(finder, row, name)
+		found = find_locations_in_row(
+			finder, row, name, return_original_point=return_original_point
+		)
 		locations = {location.pano_id: location async for location in found}
 		logger.info('Found %d locations in %s', len(locations), name)
 		coords += locations.values()
