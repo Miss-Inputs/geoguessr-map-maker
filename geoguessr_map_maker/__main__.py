@@ -178,7 +178,7 @@ def main():
 	)
 
 	args = argparser.parse_args()
-	if args.subcommand == 'generate':
+	if args.subcommand in {'generate', 'gen'}:
 		asyncio.run(
 			generate(
 				args.input_file,
@@ -202,7 +202,8 @@ def main():
 				as_percentage=args.as_percentage,
 			)
 		)
-
+	else:
+		raise ValueError(f'Somehow got incorrect subcommand: {args.subcommand!r}')
 
 with logging_redirect_tqdm():
 	main()
