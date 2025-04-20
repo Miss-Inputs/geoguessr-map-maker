@@ -29,7 +29,7 @@ async def find_panorama_backoff(
 	lat: float,
 	lng: float,
 	session: aiohttp.ClientSession,
-	radius: int = 20,
+	radius: int = 50,
 	locale: str = 'en',
 	*,
 	search_third_party: bool = False,
@@ -119,7 +119,7 @@ async def filter_panos(
 async def find_location(
 	point: shapely.Point | tuple[float, float],
 	session: 'aiohttp.ClientSession',
-	radius: int = 20,
+	radius: int = 50,
 	*,
 	locale: str = 'en',
 	allow_third_party: bool = False,
@@ -163,7 +163,7 @@ class PanoFinder(ABC):
 	def __init__(
 		self,
 		session: 'aiohttp.ClientSession',
-		radius: int = 20,
+		radius: int = 50,
 		options: LocationOptions | None = None,
 		locale: str = 'en',
 		*,
@@ -362,7 +362,7 @@ class RandomFinder(PanoFinder):
 	):
 		self.n = n
 		super().__init__(
-			session, 20, options, locale, search_third_party=search_third_party, use_tqdm=use_tqdm
+			session, 50, options, locale, search_third_party=search_third_party, use_tqdm=use_tqdm
 		)
 
 	def points_in_polygon(

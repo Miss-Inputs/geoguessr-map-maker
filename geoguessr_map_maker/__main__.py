@@ -52,7 +52,7 @@ async def generate(
 		# Even better: If it is a map, only overwrite the customCoordinates field
 		output_file = input_file.with_suffix('.json')
 	if radius is None:
-		radius = 20
+		radius = 50
 	options = LocationOptions(reject_gen_1=reject_gen_1)
 
 	if input_file_type == InputFileType.GeoJSON:
@@ -123,7 +123,7 @@ def main():
 		help='Column in input_file to interpret as the name of each row, for logging/progress purposes',
 	)
 	gen_parser.add_argument(
-		'--radius', type=int, help='Search radius for panoramas in metres, default 20m', default=20
+		'--radius', type=int, help='Search radius for panoramas in metres, default 50m', default=50
 	)
 	gen_parser.add_argument(
 		'--region-map',
@@ -204,6 +204,7 @@ def main():
 		)
 	else:
 		raise ValueError(f'Somehow got incorrect subcommand: {args.subcommand!r}')
+
 
 with logging_redirect_tqdm():
 	main()

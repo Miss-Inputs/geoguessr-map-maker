@@ -47,7 +47,7 @@ async def load_gtfs_stops(path: Path):
 async def find_stop(
 	stop: Stop,
 	session: 'aiohttp.ClientSession',
-	radius: int = 20,
+	radius: int = 50,
 	options: 'LocationOptions | None' = None,
 	*,
 	allow_third_party: bool = False,
@@ -63,7 +63,7 @@ async def find_stop(
 async def find_stops(
 	stops: Iterable[Stop],
 	session: 'aiohttp.ClientSession',
-	radius: int = 20,
+	radius: int = 50,
 	options: 'LocationOptions | None' = None,
 	*,
 	allow_third_party: bool = False,

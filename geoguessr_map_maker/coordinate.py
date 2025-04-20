@@ -105,7 +105,7 @@ async def find_point(
 	lat: float,
 	lng: float,
 	session: 'aiohttp.ClientSession',
-	radius: int = 20,
+	radius: int = 50,
 	extra: dict[str, Any] | None = None,
 	options: LocationOptions | None = None,
 	*,
