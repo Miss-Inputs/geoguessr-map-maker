@@ -31,7 +31,7 @@ def read_geo_file(
 		path.open('rb') as f,
 		tqdm.wrapattr(f, 'read', total=path.stat().st_size, desc=f'Reading {path}') as t,
 	):
-		gdf = geopandas.read_file(t, mask)
+		gdf = geopandas.read_file(t, mask=mask)
 		if not isinstance(gdf, geopandas.GeoDataFrame):
 			raise TypeError(f'{path} contains {type(gdf)}, expected GeoDataFrame')
 		if crs is not None:
