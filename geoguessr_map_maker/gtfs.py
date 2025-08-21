@@ -49,15 +49,11 @@ async def find_stop(
 	session: 'aiohttp.ClientSession',
 	radius: int = 50,
 	options: 'LocationOptions | None' = None,
-	*,
-	allow_third_party: bool = False,
 ):
 	extra = {k: v for k, v in stop.row.items() if k not in {'stop_lat', 'stop_lon'} and v}
 	if 'stop_code' in extra and extra['stop_id'] == extra['stop_code']:
 		del extra['stop_code']
-	return await find_point(
-		stop.lat, stop.lng, session, radius, extra, options, allow_third_party=allow_third_party
-	)
+	return await find_point(stop.lat, stop.lng, session, radius, extra, options)
 
 
 async def find_stops(
@@ -65,14 +61,10 @@ async def find_stops(
 	session: 'aiohttp.ClientSession',
 	radius: int = 50,
 	options: 'LocationOptions | None' = None,
-	*,
-	allow_third_party: bool = False,
 ) -> AsyncIterator[Coordinate]:
 	with tqdm(stops, desc='Finding stops', unit='stop') as t:
 		for stop in t:
 			t.set_postfix(stop=stop.name)
-			loc = await find_stop(
-				stop, session, radius, options, allow_third_party=allow_third_party
-			)
+			loc = await find_stop(stop, session, radius, options)
 			if loc:
 				yield loc

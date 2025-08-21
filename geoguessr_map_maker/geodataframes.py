@@ -46,7 +46,6 @@ async def find_locations_in_row(
 			finder.session,
 			finder.radius,
 			extra,
-			allow_third_party=finder.search_third_party,
 			pan_to_original_point=pan_to_original_point,
 			snap_to_original_point=snap_to_original_point,
 		)

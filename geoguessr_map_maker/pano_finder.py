@@ -33,7 +33,7 @@ async def find_panorama_backoff(
 	locale: str = 'en',
 	*,
 	search_third_party: bool = False,
-):
+) -> Panorama | None:
 	pano = await streetview.find_panorama_async(
 		lat, lng, session, radius, locale, search_third_party=search_third_party
 	)
@@ -57,7 +57,7 @@ async def _check_predicate(
 	session: aiohttp.ClientSession,
 	option: PredicateOption,
 	predicate: Callable[[Panorama, aiohttp.ClientSession], Coroutine[Any, Any, bool]],
-):
+) -> bool:
 	if option == PredicateOption.Require:
 		return await predicate(pano, session)
 	if option == PredicateOption.Reject:
@@ -77,6 +77,8 @@ class LocationOptions:
 	"""If Require, only allow panoramas that are at an intersection, or if Reject, only allow panoramas that are not at an intersection"""
 	buildings: PredicateOption = PredicateOption.Ignore
 	"""If Require, only allow panoramas that have a building nearby or are a trekker of a building, or if Reject, only allow panoramas that do not"""
+	allow_third_party: PredicateOption = PredicateOption.Reject
+	"""If Require, only allow third party panoramas, or if Reject, only allow official coverage"""
 	# TODO: More parameters:
 	# On a road curve
 	# Minimum resolution (for third party)
@@ -86,21 +88,27 @@ class LocationOptions:
 
 async def is_panorama_wanted(
 	pano: Panorama, session: aiohttp.ClientSession, options: LocationOptions | None = None
-):
+) -> bool:
 	if options is None:
 		options = LocationOptions()
+	if options.allow_third_party == PredicateOption.Require and not pano.pano.is_third_party:
+		return False
+	if options.allow_third_party == PredicateOption.Reject and pano.pano.is_third_party:
+		return False
 
 	if not options.allow_normal:
 		if not pano.has_extended_info:
 			pano = await ensure_full_pano(pano, session)
 		if pano.pano.source == 'launch':
 			return False
-	if not await _check_predicate(pano, session, options.trekker, is_trekker):
-		return False
-	if not await _check_predicate(pano, session, options.intersections, is_intersection):
-		return False
-	if not await _check_predicate(pano, session, options.buildings, has_building):
-		return False
+	checkers = [
+		(options.trekker, is_trekker),
+		(options.intersections, is_intersection),
+		(options.buildings, has_building),
+	]
+	for option, predicate in checkers:
+		if not await _check_predicate(pano, session, option, predicate):
+			return False
 
 	gen = await camera_gen(pano, session)
 	if options.reject_gen_1:
@@ -122,11 +130,10 @@ async def find_location(
 	radius: int = 50,
 	*,
 	locale: str = 'en',
-	allow_third_party: bool = False,
 	options: LocationOptions | None = None,
 ) -> Panorama | None:
 	"""
-	Parameters:
+	Arguments:
 		point: Shapely Point object, or (latitude, longitude) tuple
 		session: Session to use for finding panoramas
 		locale: Locale to use for addresses etc in the returned panorama
@@ -134,14 +141,10 @@ async def find_location(
 	"""
 	if isinstance(point, shapely.Point):
 		return await find_location(
-			(point.y, point.x),
-			session=session,
-			radius=radius,
-			locale=locale,
-			allow_third_party=allow_third_party,
-			options=options,
+			(point.y, point.x), session=session, radius=radius, locale=locale, options=options
 		)
 	lat, lon = point
+	allow_third_party = options.allow_third_party != PredicateOption.Reject if options else False
 	# Try official coverage first, because it is unlikely we would ever _prefer_ third party even if looking for both
 	pano = await find_panorama_backoff(
 		lat, lon, session=session, radius=radius, locale=locale, search_third_party=False
@@ -149,7 +152,12 @@ async def find_location(
 	if not pano or not await is_panorama_wanted(pano, session, options):
 		if allow_third_party:
 			pano = await find_panorama_backoff(
-				lat, lon, session=session, radius=radius, locale=locale, search_third_party=True
+				lat,
+				lon,
+				session=session,
+				radius=radius,
+				locale=locale,
+				search_third_party=allow_third_party,
 			)
 			if not pano or not await is_panorama_wanted(pano, session, options):
 				return None
@@ -167,14 +175,12 @@ class PanoFinder(ABC):
 		options: LocationOptions | None = None,
 		locale: str = 'en',
 		*,
-		search_third_party: bool = False,
 		use_tqdm: bool = True,
 	) -> None:
 		self.session = session
 		self.radius = radius
 		self.options = options
 		self.locale = locale
-		self.search_third_party = search_third_party
 		self.use_tqdm = use_tqdm
 
 	async def find_locations(
@@ -191,7 +197,6 @@ class PanoFinder(ABC):
 				point,
 				session=self.session,
 				radius=self.radius,
-				allow_third_party=self.search_third_party,
 				locale=self.locale,
 				options=self.options,
 			)
@@ -255,12 +260,7 @@ class PanoFinder(ABC):
 	) -> AsyncIterator[Panorama]:
 		if isinstance(geometry, shapely.Point):
 			pano = await find_location(
-				geometry,
-				self.session,
-				self.radius,
-				locale=self.locale,
-				allow_third_party=self.search_third_party,
-				options=self.options,
+				geometry, self.session, self.radius, locale=self.locale, options=self.options
 			)
 			if pano:
 				yield pano
@@ -361,18 +361,10 @@ class RandomFinder(PanoFinder):
 		options: LocationOptions | None = None,
 		locale: str = 'en',
 		*,
-		search_third_party: bool = False,
 		use_tqdm: bool = True,
 	):
 		self.n = n
-		super().__init__(
-			session,
-			radius,
-			options,
-			locale,
-			search_third_party=search_third_party,
-			use_tqdm=use_tqdm,
-		)
+		super().__init__(session, radius, options, locale, use_tqdm=use_tqdm)
 
 	def points_in_polygon(
 		self, polygon: shapely.Polygon | shapely.MultiPolygon, name: str | None = None

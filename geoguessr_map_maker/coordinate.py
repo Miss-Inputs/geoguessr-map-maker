@@ -109,14 +109,12 @@ async def find_point(
 	extra: dict[str, Any] | None = None,
 	options: LocationOptions | None = None,
 	*,
-	allow_third_party: bool = False,
 	pan_to_original_point: bool | None=None,
 	snap_to_original_point: bool = False,
 ):
 	pano = await find_location(
 		(lat, lng),
 		radius=radius,
-		allow_third_party=allow_third_party,
 		session=session,
 		options=options,
 	)
