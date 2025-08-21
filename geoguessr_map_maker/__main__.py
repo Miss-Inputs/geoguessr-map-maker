@@ -206,7 +206,7 @@ def main():
 		dest='file_type',
 		help='Read input_file as a GTFS feed and make a map of the stops',
 	)
-	# TODO: The rest of LocationOptions: allow_normal, allow_unofficial = Require
+	# TODO: The rest of LocationOptions: allow_unofficial = Require
 	gen_parser.add_argument(
 		'--allow-gen-1',
 		action=BooleanOptionalAction,

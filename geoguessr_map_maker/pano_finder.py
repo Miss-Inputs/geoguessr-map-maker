@@ -15,7 +15,7 @@ from streetlevel import streetview
 from streetlevel.geo import tile_coord_to_wgs84, wgs84_to_tile_coord
 from tqdm.auto import tqdm
 
-from .pano import Panorama, camera_gen, ensure_full_pano, has_building, is_intersection, is_trekker
+from .pano import Panorama, camera_gen, has_building, is_intersection, is_trekker
 from .shape_utils import (
 	get_polygon_lattice,
 	random_points_in_line,
@@ -72,8 +72,6 @@ async def _check_predicate(
 
 @dataclass
 class LocationOptions:
-	allow_normal: bool = True
-	"""Allow ordinary car coverage"""
 	trekker: PredicateOption = PredicateOption.Ignore
 	"""Allow/reject/require trekker coverage"""
 	reject_gen_1: bool = False
@@ -103,7 +101,7 @@ async def _check_buildings(pano: Panorama, session: aiohttp.ClientSession, optio
 	return building
 
 
-async def is_panorama_wanted(  # noqa: C901
+async def is_panorama_wanted(
 	pano: Panorama, session: aiohttp.ClientSession, options: LocationOptions | None = None
 ) -> bool:
 	if options is None:
@@ -113,11 +111,6 @@ async def is_panorama_wanted(  # noqa: C901
 	if options.allow_third_party == PredicateOption.Reject and pano.pano.is_third_party:
 		return False
 
-	if not options.allow_normal:
-		if not pano.has_extended_info:
-			pano = await ensure_full_pano(pano, session)
-		if pano.pano.source == 'launch':
-			return False
 	if not await _check_buildings(pano, session, options.buildings):
 		return False
 	checkers = [(options.trekker, is_trekker), (options.intersections, is_intersection)]
