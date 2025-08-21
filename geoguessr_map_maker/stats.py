@@ -1,6 +1,6 @@
 import json
 from collections import Counter
-from collections.abc import Mapping, Sequence
+from collections.abc import Hashable, Mapping, Sequence
 from enum import Enum, auto
 from pathlib import Path
 from typing import Any
@@ -10,7 +10,7 @@ import pandas
 import shapely
 from geopandas import GeoDataFrame
 
-from .gdf_utils import count_points_in_each_region, read_geo_file_async
+from .gdf_utils import autodetect_name_col, count_points_in_each_region, read_geo_file_async
 
 
 async def _read_json(path: Path):
@@ -25,7 +25,7 @@ CoordinateList = Sequence[Mapping[str, Any]]
 async def get_region_stats(
 	coords: CoordinateList,
 	regions_file: Path | GeoDataFrame,
-	regions_name_col: str | None = None,
+	regions_name_col: Hashable | None = None,
 	*,
 	as_percentage: bool = True,
 ):
@@ -44,8 +44,7 @@ async def get_region_stats(
 		if isinstance(regions_file, GeoDataFrame)
 		else await read_geo_file_async(regions_file)
 	)
-	if regions_name_col is None:
-		regions_name_col = regions.columns.drop('geometry')[0]
+	regions_name_col = regions_name_col or autodetect_name_col(regions, should_fallback=True)
 	points = shapely.points([(c['lng'], c['lat']) for c in coords])
 	stats = count_points_in_each_region(points, regions, regions_name_col)
 	if as_percentage:
@@ -55,6 +54,8 @@ async def get_region_stats(
 
 def get_country_code_stats(coords: CoordinateList, *, as_percentage: bool = True):
 	"""
+	Counts the country codes in a list of coordinates. Doesn't work if the countryCode field is not used.
+
 	Returns:
 		Series of int (float if as_percentage is True) with a row for each country, the country code being the index, and the count/percentage as values
 	"""
@@ -76,7 +77,7 @@ async def get_stats(
 	coords: CoordinateList,
 	stats_type: StatsType,
 	regions_file: Path | GeoDataFrame | None,
-	regions_name_col: str | None,
+	regions_name_col: Hashable | None,
 	*,
 	as_percentage: bool = True,
 ):
@@ -108,7 +109,7 @@ async def get_stats_for_file(
 	file: Path,
 	stats_type: StatsType,
 	regions_file: Path | GeoDataFrame | None,
-	regions_name_col: str | None,
+	regions_name_col: Hashable | None,
 	*,
 	as_percentage: bool = True,
 ):
@@ -122,7 +123,7 @@ async def print_stats(
 	file: Path,
 	stats_type: StatsType,
 	regions_file: Path | None = None,
-	regions_name_col: str | None = None,
+	regions_name_col: Hashable | None = None,
 	output_file: Path | None = None,
 	*,
 	as_percentage: bool = True,

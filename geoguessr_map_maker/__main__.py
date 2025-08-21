@@ -1,6 +1,7 @@
 import asyncio
 import json
 from argparse import ArgumentParser, BooleanOptionalAction
+from collections.abc import Hashable
 from enum import Enum, auto
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Literal
@@ -10,7 +11,7 @@ import aiohttp
 from tqdm.contrib.logging import logging_redirect_tqdm
 
 from .coordinate import CoordinateMap
-from .gdf_utils import read_geo_file_async
+from .gdf_utils import autodetect_name_col, read_geo_file_async
 from .geodataframes import find_locations_in_geodataframe, gdf_to_regions_map
 from .gtfs import find_stops, load_gtfs_stops
 from .pano_finder import LatticeFinder, LocationOptions, PointFinder, PredicateOption, RandomFinder
@@ -53,7 +54,7 @@ FinderType = Literal['lattice', 'random', 'points']
 
 async def generate_points(
 	gdf: 'geopandas.GeoDataFrame',
-	name_col: str | None,
+	name_col: Hashable | None,
 	radius: int,
 	n: int | None,
 	finder_type: FinderType,
@@ -77,7 +78,7 @@ async def generate(
 	input_file: Path,
 	input_file_type: InputFileType,
 	output_file: Path | None = None,
-	name_col: str | None = None,
+	name_col: Hashable | None = None,
 	radius: int | None = None,
 	n: int | None = None,
 	finder_type: FinderType = 'random',
@@ -104,8 +105,7 @@ async def generate(
 
 	if input_file_type == InputFileType.GeoJSON:
 		gdf = await read_geo_file_async(input_file)
-		if name_col is None and 'name' in gdf.columns:
-			name_col = 'name'
+		name_col = name_col or autodetect_name_col(gdf)
 		if as_region_map:
 			await _write_json(output_file, gdf_to_regions_map(gdf, name_col))
 			return
@@ -129,7 +129,7 @@ async def stats(
 	input_file: Path,
 	stats_type: str | StatsType,
 	stats_region_file: Path | None = None,
-	name_col: str | None = None,
+	name_col: Hashable | None = None,
 	output_file: str | Path | None = None,
 	*,
 	as_percentage: bool = True,
