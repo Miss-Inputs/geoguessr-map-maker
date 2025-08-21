@@ -192,14 +192,18 @@ class PanoFinder(ABC):
 		self.use_tqdm = use_tqdm
 
 	async def find_locations(
-		self, points: Iterable[shapely.Point | tuple[float, float]], name: str | None = None
+		self,
+		points: Iterable[shapely.Point | tuple[float, float]],
+		name: str | None = None,
+		*,
+		disable_tqdm: bool = False,
 	) -> AsyncIterator[Panorama]:
 		for point in tqdm(
 			points,
 			f'Finding locations for {name or "points"}',
 			unit='point',
 			leave=False,
-			disable=not self.use_tqdm,
+			disable=disable_tqdm or not self.use_tqdm,
 		):
 			pano = await find_location(
 				point,
@@ -358,9 +362,6 @@ class LatticeFinder(PanoFinder):
 class RandomFinder(PanoFinder):
 	"""Finds a certain amount of random points in each geometry."""
 
-	# TODO: Ensure this actually finds n points instead of just searching n points, which will be tricky
-	# We will need some kind of "maximum attempts per region" argument for that to not be a bad idea
-
 	def __init__(
 		self,
 		session: 'aiohttp.ClientSession',
@@ -369,9 +370,11 @@ class RandomFinder(PanoFinder):
 		options: LocationOptions | None = None,
 		locale: str = 'en',
 		*,
+		ensure_n: bool = True,
 		use_tqdm: bool = True,
 	):
 		self.n = n
+		self.ensure_n = ensure_n
 		super().__init__(session, radius, options, locale, use_tqdm=use_tqdm)
 
 	def points_in_polygon(
@@ -388,6 +391,46 @@ class RandomFinder(PanoFinder):
 		self, linestring: shapely.LineString, name: str | None = None
 	) -> Iterable[shapely.Point]:
 		return random_points_in_line(linestring, self.n)
+
+	async def find_locations_in_geometry(
+		self, geometry: 'BaseGeometry', name: str | None = None
+	) -> AsyncIterator[Panorama]:
+		if self.ensure_n and not isinstance(geometry, (shapely.Point, shapely.GeometryCollection)):
+			tries = 0
+			with tqdm(
+				desc=f'Finding points in {name or "geometry"}',
+				total=self.n,
+				leave=False,
+				unit='points',
+			) as t:
+				total_panos = []
+				while len(total_panos) < self.n:
+					tries += 1
+					t.set_postfix(tries=tries)
+					# TODO We will probably need some kind of "maximum attempts per region" argument here
+					# For now we accept the risk that it runs forever
+					try:
+						points = self._points_in_geometry(geometry)
+					except NotImplementedError:
+						logger.warning(
+							'Unhandled geometry type%s: %s',
+							f' in {name}' if name else '',
+							geometry.geom_type,
+						)
+						return
+					else:
+						panos = [
+							pano
+							async for pano in self.find_locations(points, name, disable_tqdm=True)
+						]
+						t.update(len(panos))
+						total_panos += panos
+				for pano in total_panos[:self.n]:
+					yield pano
+			return
+
+		async for pano in super().find_locations_in_geometry(geometry, name):
+			yield pano
 
 
 async def get_panos_in_geometry_via_tiles(

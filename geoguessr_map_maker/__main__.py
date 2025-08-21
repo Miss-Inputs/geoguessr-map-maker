@@ -12,7 +12,7 @@ import geopandas
 import shapely
 from tqdm.contrib.logging import logging_redirect_tqdm
 
-from .coordinate import Coordinate, CoordinateMap
+from .coordinate import Coordinate, CoordinateMap, PanningModeType
 from .gdf_finder import find_locations_in_geodataframe, gdf_to_regions_map
 from .gdf_utils import autodetect_name_col, read_geo_file_async
 from .gtfs import find_stops, load_gtfs_stops
@@ -51,20 +51,26 @@ async def generate_points(
 	n: int | None,
 	finder_type: FinderType,
 	options: LocationOptions,
-):
+	panning: PanningModeType = None,
+	*,
+	ensure_n: bool,
+) -> Collection[Coordinate]:
 	async with aiohttp.ClientSession() as session:
 		if finder_type == 'lattice':
 			finder = LatticeFinder(session, radius, options)
 		elif finder_type == 'random':
 			if not n:
 				n = 100_000 // gdf.index.size
-			finder = RandomFinder(session, radius, n, options)
+			finder = RandomFinder(session, radius, n, options, ensure_n=ensure_n)
 		elif finder_type == 'points':
 			finder = PointFinder(session, radius, options)
-		return await find_locations_in_geodataframe(finder, gdf, name_col)
+		return await find_locations_in_geodataframe(finder, gdf, name_col, panning)
 
 
 async def output_locations(locations: Collection[Coordinate], name: str, output_path: Path):
+	if not locations:
+		print('Did not find any locations!')
+		return
 	if output_path.suffix.lower() == '.geojson':
 		rows = [
 			{
@@ -102,6 +108,7 @@ async def generate(
 	intersections: PredicateOption = PredicateOption.Ignore,
 	buildings: PredicateOption = PredicateOption.Ignore,
 	as_region_map: bool = False,
+	ensure_n: bool = False,
 ):
 	# TODO: Allow input_file to not actually be a filesystem path, because geopandas read_file can get URLs and that sort of thing
 	# TODO: Autodetect input_file_type, e.g. if zip (and contains stops.txt) then it should be GTFS
@@ -125,7 +132,9 @@ async def generate(
 			await _write_json(output_file, gdf_to_regions_map(gdf, name_col))
 			return
 
-		locations = await generate_points(gdf, name_col, radius, n, finder_type, options)
+		locations = await generate_points(
+			gdf, name_col, radius, n, finder_type, options, ensure_n=ensure_n
+		)
 	elif input_file_type == InputFileType.GTFS:
 		locations = await generate_gtfs(input_file, radius, options)
 	else:
@@ -195,6 +204,12 @@ def main():
 		default=0,
 	)
 	gen_parser.add_argument(
+		'--ensure-balance',
+		action=BooleanOptionalAction,
+		help='Try and ensure n points end up being found in each geometry, continually retrying until this happens, defualt true',
+		default=False,
+	)
+	gen_parser.add_argument(
 		'--region-map',
 		action='store_true',
 		help='Generate a region map instead of finding coordinates in each area, ignoring arguments like radius etc.',
@@ -207,26 +222,29 @@ def main():
 		help='Read input_file as a GTFS feed and make a map of the stops',
 	)
 	# TODO: The rest of LocationOptions: allow_unofficial = Require
-	gen_parser.add_argument(
+	options_group = gen_parser.add_argument_group(
+		'Location options', 'What locations to allow/require/reject'
+	)
+	options_group.add_argument(
 		'--allow-gen-1',
 		action=BooleanOptionalAction,
 		help='Allow official gen 1 coverage, defaults to false',
 		default=False,
 	)
-	gen_parser.add_argument(
+	options_group.add_argument(
 		'--intersections',
 		help='Allow/ignore, require, or reject locations at intersections, default allow',
 		choices=_predicates,
 		default='allow',
 	)
-	gen_parser.add_argument(
+	options_group.add_argument(
 		'--buildings',
 		help='Allow/ignore, require, or reject locations with buildings nearby, default allow',
 		choices=_predicates,
 		default='allow',
 	)
-	gen_parser.add_argument(
-		'--allow-unofficial', action='store_true', help='Allow unofficial coverage'
+	options_group.add_argument(
+		'--allow-unofficial', action='store_true', help='Allow unofficial coverage, default reject'
 	)
 
 	stats_parser = subparsers.add_parser(
@@ -276,6 +294,7 @@ def main():
 				as_region_map=args.region_map or False,
 				intersections=_predicates[args.intersections],
 				buildings=_predicates[args.buildings],
+				ensure_n=args.ensure_balance,
 			)
 		)
 	elif args.subcommand == 'stats':
