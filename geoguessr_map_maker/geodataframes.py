@@ -1,5 +1,5 @@
 import logging
-from collections.abc import Collection, Hashable
+from collections.abc import AsyncIterator, Collection, Hashable, Iterator
 from typing import TYPE_CHECKING
 
 import pandas
@@ -23,12 +23,18 @@ async def find_locations_in_row(
 	row: 'pandas.Series',
 	name: str | None = None,
 	*,
-	pan_to_original_point: bool | None = None,
+	pan_to_original_point: bool = True,
 	snap_to_original_point: bool = False,
-):
+) -> AsyncIterator[Coordinate]:
 	"""
-	Parameters:
-		name: Only used for logging/displaying progress bars"""
+	Finds locations from a row of a GeoDataFrame, depending on whether it contains a Point or something else.
+
+	Arguments:
+		finder: PanoFinder used for finding points in polygons/multipolygons/etc, point geometries will be found directly.
+		name: Name for this row. Only used for logging/displaying progress bars.
+		pan_to_original_point: For point geometries, whether to pan towards the original point, defaults to true.
+		snap_to_original_points: For point geometries, returns the original point as the actual location in the map, so while the panorama will be loaded wherever it is found, the point where players actually click is potentially somewhere else. Not recommended as it would be unexpected.
+	"""
 	geometry = row.geometry
 	if not isinstance(geometry, BaseGeometry):
 		logger.error('%s does not have geometry: %s', name or 'Row', row)
@@ -67,15 +73,20 @@ async def find_locations_in_geodataframe(
 	gdf: 'geopandas.GeoDataFrame',
 	name_col: Hashable | None = None,
 	*,
-	pan_to_original_point: bool | None = None,
+	pan_to_original_point: bool = True,
 	snap_to_original_point: bool = False,
 ) -> Collection[Coordinate]:
-	"""
-	Parameters:
-		name_col: Column in gdf to use for displayng progress bars, logging, etc
+	"""Finds all the locations that it can using geometries in a GeoDataFrame.
+
+	Arguments:
+		name_col: Column in gdf to use for displayng progress bars, logging, etc.
+		pan_to_original_point: For point geometries, whether to pan towards the original point, defaults to true.
+		snap_to_original_points: For point geometries, returns the original point as the actual location in the map, so while the panorama will be loaded wherever it is found, the point where players actually click is potentially somewhere else. Not recommended as it would be unexpected.
 	"""
 	coords: list[Coordinate] = []
-	for index, row in (t := tqdm(gdf.iterrows(), 'Finding rows', unit='row', total=gdf.index.size)):
+	for index, row in (
+		t := tqdm(gdf.iterrows(), 'Finding points in rows', unit='row', total=gdf.index.size)
+	):
 		if name_col:
 			name = str(row.get(name_col, index)).replace('\r', ' ').replace('\n', ' ')
 			t.set_postfix({'index': index, str(name_col): name})
@@ -97,7 +108,7 @@ async def find_locations_in_geodataframe(
 	return coords
 
 
-def gdf_to_regions(gdf: 'geopandas.GeoDataFrame', name_col: Hashable | None = None):
+def gdf_to_regions(gdf: 'geopandas.GeoDataFrame', name_col: Hashable | None = None) -> Iterator[tuple[str, shapely.LinearRing]]:
 	with tqdm(gdf.iterrows(), 'Converting rows', unit='row', total=gdf.index.size) as t:
 		for index, row in t:
 			if name_col:

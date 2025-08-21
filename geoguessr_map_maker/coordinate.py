@@ -58,9 +58,10 @@ def pano_to_coordinate(
 	
 	Arguments:
 		pan_to_original_point: Whether to pan towards the original point, the default of None means it will do this if original_lat and original_lng are passed in and will not otherwise
+		snap_to_original_points: Returns the original point as the actual location in the map, so while the panorama will be loaded wherever it is found, the point where players actually click is potentially somewhere else. Not recommended as it would be unexpected.
 
 	Raises:
-		ValueError: If pan_to_original_point or snap_to_original_point are True but original_lat and original_lng are not provided
+		ValueError: If pan_to_original_point or snap_to_original_point are True but original_lat and original_lng are not provided.
 		
 	"""
 	#TODO: Argument to offset panning (e.g. pass in 90 to make a skewed map)
@@ -83,9 +84,9 @@ def pano_to_coordinate(
 	lng = pano.lon
 	if snap_to_original_point:
 		if original_lat is None:
-			raise ValueError('original_lat must be provided if using pan_to_original_point')
+			raise ValueError('original_lat must be provided if using snap_to_original_point')
 		if original_lng is None:
-			raise ValueError('original_lng must be provided if using pan_to_original_point')
+			raise ValueError('original_lng must be provided if using snap_to_original_point')
 		lat = original_lat
 		lng = original_lng
 	
@@ -109,9 +110,16 @@ async def find_point(
 	extra: dict[str, Any] | None = None,
 	options: LocationOptions | None = None,
 	*,
-	pan_to_original_point: bool | None=None,
+	pan_to_original_point: bool = True,
 	snap_to_original_point: bool = False,
-):
+) -> Coordinate | None:
+	"""Attempts to find a panorama at a given point within a radius, and converts it to a `Coordinate`.
+	
+	Arguments:
+		extra: Optional extra information to be stored in the "extra" field. Ignored by GeoGuessr but can be used by other tools.
+		pan_to_original_point: Whether to pan towards the original point, defaults to true.
+		snap_to_original_points: Returns the original point as the actual location in the map, so while the panorama will be loaded wherever it is found, the point where players actually click is potentially somewhere else. Not recommended as it would be unexpected.
+	"""
 	pano = await find_location(
 		(lat, lng),
 		radius=radius,
@@ -131,7 +139,7 @@ class CoordinateMap:
 	name: str | None = None
 	description: str | None = None
 
-	def to_dict(self):
+	def to_dict(self) -> dict[str, Any]:
 		d = {
 			# avatar: {background, decoration, ground, landscape}, who cares
 			# 'created': datetime.now().isoformat(),
