@@ -1,24 +1,23 @@
 import asyncio
 import json
 from argparse import ArgumentParser, BooleanOptionalAction
-from collections.abc import Hashable
+from collections.abc import Collection, Hashable
 from enum import Enum, auto
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Literal
+from typing import Any, Literal
 
 import aiofiles
 import aiohttp
+import geopandas
+import shapely
 from tqdm.contrib.logging import logging_redirect_tqdm
 
-from .coordinate import CoordinateMap
+from .coordinate import Coordinate, CoordinateMap
 from .gdf_finder import find_locations_in_geodataframe, gdf_to_regions_map
 from .gdf_utils import autodetect_name_col, read_geo_file_async
 from .gtfs import find_stops, load_gtfs_stops
 from .pano_finder import LatticeFinder, LocationOptions, PointFinder, PredicateOption, RandomFinder
 from .stats import StatsType, print_stats
-
-if TYPE_CHECKING:
-	import geopandas
 
 
 class InputFileType(Enum):
@@ -65,6 +64,29 @@ async def generate_points(
 		return await find_locations_in_geodataframe(finder, gdf, name_col)
 
 
+async def output_locations(locations: Collection[Coordinate], name: str, output_path: Path):
+	if output_path.suffix.lower() == '.geojson':
+		rows = [
+			{
+				'geometry': shapely.Point(loc.lng, loc.lat),
+				'pano_id': loc.pano_id,
+				'heading': loc.heading,
+				'pitch': loc.pitch,
+				'zoom': loc.zoom,
+				'country_code': loc.country_code,
+				**(loc.extra or {}),
+			}
+			for loc in locations
+		]
+		gdf = geopandas.GeoDataFrame(rows, crs='wgs84')
+		print(gdf)
+		await asyncio.to_thread(gdf.to_file, output_path)
+		return
+	geoguessr_map = CoordinateMap(locations, name)
+	print(f'Found {len(locations)} locations')
+	await _write_json(output_path, geoguessr_map.to_dict())
+
+
 async def generate(
 	input_file: Path,
 	input_file_type: InputFileType,
@@ -80,7 +102,6 @@ async def generate(
 	intersections: PredicateOption = PredicateOption.Ignore,
 	buildings: PredicateOption = PredicateOption.Ignore,
 	as_region_map: bool = False,
-	overwrite: bool=False
 ):
 	# TODO: Allow input_file to not actually be a filesystem path, because geopandas read_file can get URLs and that sort of thing
 	# TODO: Autodetect input_file_type, e.g. if zip (and contains stops.txt) then it should be GTFS
@@ -110,9 +131,7 @@ async def generate(
 	else:
 		raise ValueError(f'Whoops I have not implemented {input_file_type} yet')
 
-	geoguessr_map = CoordinateMap(locations, input_file.stem)
-	print(f'Found {len(locations)} locations')
-	await _write_json(output_file, geoguessr_map.to_dict())
+	await output_locations(locations, input_file.stem, output_file)
 
 
 async def stats(
@@ -150,7 +169,6 @@ def main():
 
 	gen_parser = subparsers.add_parser('generate', help='Generate a map', aliases=['gen'])
 	gen_parser.add_argument('input_file', type=Path, help='File to convert')
-	# TODO: Clean up output_file handling
 	gen_parser.add_argument(
 		'output_file',
 		type=Path,
