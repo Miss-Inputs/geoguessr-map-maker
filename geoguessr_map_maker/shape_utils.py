@@ -15,6 +15,8 @@ mercator = CRS('Web Mercator')
 wgs84_to_mercator = Transformer.from_crs(wgs84, mercator, always_xy=True)
 mercator_to_wgs84 = partial(wgs84_to_mercator.transform, direction=TransformDirection.INVERSE)
 
+RandomType = numpy.random.Generator | numpy.random.BitGenerator | int | None
+
 
 def get_polygon_lattice(
 	poly: shapely.Polygon | shapely.MultiPolygon | shapely.LinearRing,
@@ -53,11 +55,7 @@ def get_polygon_lattice(
 
 
 def random_point_in_bbox(
-	min_x: float,
-	min_y: float,
-	max_x: float,
-	max_y: float,
-	random: numpy.random.Generator | int | None = None,
+	min_x: float, min_y: float, max_x: float, max_y: float, random: RandomType = None
 ) -> shapely.Point:
 	"""Uniformly generates a point somewhere in a bounding box."""
 	if not isinstance(random, numpy.random.Generator):
@@ -68,14 +66,9 @@ def random_point_in_bbox(
 
 
 def random_points_in_bbox(
-	min_x: float,
-	min_y: float,
-	max_x: float,
-	max_y: float,
-	n: int,
-	random: numpy.random.Generator | int | None = None,
+	min_x: float, min_y: float, max_x: float, max_y: float, n: int, random: RandomType = None
 ) -> numpy.ndarray:
-	"""Uniformly generates several points somewhere in a bounding box."""
+	"""Uniformly generates `n` points somewhere in a bounding box."""
 	# TODO: This might lowkey be not actually uniform because of projection shenanigans. Why can't the Earth be square? Dammit
 	if not isinstance(random, numpy.random.Generator):
 		random = numpy.random.default_rng(random)
@@ -87,7 +80,7 @@ def random_points_in_bbox(
 
 
 def random_point_in_poly(
-	poly: shapely.Polygon | shapely.MultiPolygon, random: numpy.random.Generator | int | None = None
+	poly: shapely.Polygon | shapely.MultiPolygon, random: RandomType = None
 ) -> shapely.Point:
 	"""
 	Uniformly-ish generates a point somewhere within a polygon.
@@ -97,6 +90,8 @@ def random_point_in_poly(
 		poly: shapely Polygon or MultiPolygon
 		random: Optionally a numpy random generator or seed, otherwise default_rng is used
 	"""
+	if not isinstance(random, numpy.random.Generator):
+		random = numpy.random.default_rng(random)
 	min_x, max_x, min_y, max_y = poly.bounds
 	shapely.prepare(poly)
 	while True:
@@ -108,7 +103,9 @@ def random_point_in_poly(
 def random_points_in_poly(
 	poly: shapely.Polygon | shapely.MultiPolygon,
 	n: int,
-	random: numpy.random.Generator | int | None = None,
+	random: RandomType = None,
+	*,
+	ensure_n: bool = True,
 ) -> Collection[shapely.Point]:
 	"""
 	Uniformly-ish generates several points somewhere within a polygon.
@@ -118,9 +115,16 @@ def random_points_in_poly(
 		poly: shapely Polygon or MultiPolygon
 		random: Optionally a numpy random generator or seed, otherwise default_rng is used
 	"""
+	if not isinstance(random, numpy.random.Generator):
+		random = numpy.random.default_rng(random)
 	min_x, max_x, min_y, max_y = poly.bounds
 	shapely.prepare(poly)
+	all_points = []
 	while True:
 		points = random_points_in_bbox(min_x, max_x, min_y, max_y, n, random)
 		contains = poly.contains_properly(points)
-		return [point for point, contained in zip(points, contains, strict=True) if contained]
+		all_points += (
+			point for point, contained in zip(points, contains, strict=True) if contained
+		)
+		if (not ensure_n) or (len(all_points) >= n):
+			return all_points[:n]

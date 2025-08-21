@@ -12,6 +12,8 @@ if TYPE_CHECKING:
 	import aiohttp
 	from streetlevel.streetview import StreetViewPanorama
 
+	from .shape_utils import RandomType
+
 
 @dataclass
 class Coordinate:
@@ -54,7 +56,6 @@ class PanningMode(Enum):
 
 
 PanningModeType = float | PanningMode | None
-RandomType = numpy.random.Generator | numpy.random.BitGenerator | int | None
 
 
 def get_panning(
@@ -62,7 +63,7 @@ def get_panning(
 	mode: PanningMode,
 	original_lat: float | None = None,
 	original_lng: float | None = None,
-	random: RandomType = None,
+	random: 'RandomType' = None,
 ) -> float:
 	if mode == PanningMode.OriginalPoint:
 		if original_lat is None:
@@ -87,7 +88,7 @@ def pano_to_coordinate(
 	country_code: str | None = None,
 	extra: dict[str, Any] | None = None,
 	panning: PanningModeType = None,
-	random: RandomType = None,
+	random: 'RandomType' = None,
 	*,
 	snap_to_original_point: bool = False,
 ) -> Coordinate:
@@ -140,7 +141,7 @@ async def find_point(
 	extra: dict[str, Any] | None = None,
 	options: LocationOptions | None = None,
 	panning: PanningModeType = None,
-	random: RandomType = None,
+	random: 'RandomType' = None,
 	locale: str = 'en',
 	*,
 	snap_to_original_point: bool = False,
