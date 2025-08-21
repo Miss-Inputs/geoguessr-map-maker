@@ -295,8 +295,10 @@ class PanoFinder(ABC):
 				async for pano in self.find_locations(points, name):
 					yield pano
 
+
 class PointFinder(PanoFinder):
 	"""Will only find exact points, extracting the coordinates of any geometry that is not a Point."""
+
 	def points_in_polygon(
 		self, polygon: shapely.Polygon | shapely.MultiPolygon, name: str | None = None
 	) -> Iterable[shapely.Point]:
@@ -349,10 +351,12 @@ class RandomFinder(PanoFinder):
 
 	# TODO: Command line options to use this
 	# TODO: Ensure this actually finds n points instead of just searching n points, which will be tricky
+	# We will need some kind of "maximum attempts per region" argument for that to not be a bad idea
 
 	def __init__(
 		self,
 		session: 'aiohttp.ClientSession',
+		radius: int = 50,
 		n: int = 100,
 		options: LocationOptions | None = None,
 		locale: str = 'en',
@@ -362,7 +366,12 @@ class RandomFinder(PanoFinder):
 	):
 		self.n = n
 		super().__init__(
-			session, 50, options, locale, search_third_party=search_third_party, use_tqdm=use_tqdm
+			session,
+			radius,
+			options,
+			locale,
+			search_third_party=search_third_party,
+			use_tqdm=use_tqdm,
 		)
 
 	def points_in_polygon(
