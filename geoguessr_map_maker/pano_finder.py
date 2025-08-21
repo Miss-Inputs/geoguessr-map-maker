@@ -86,7 +86,19 @@ class LocationOptions:
 	# Gen 1 only, because at that point why not
 
 
-async def is_panorama_wanted(
+async def _check_buildings(pano: Panorama, session: aiohttp.ClientSession, option: PredicateOption):
+	if option == PredicateOption.Ignore:
+		return True
+	building = await has_building(pano, session)
+	# If we can't be sure, and we care about it, then we don't want it
+	if building is None:
+		return False
+	if option == PredicateOption.Reject:
+		return not building
+	return building
+
+
+async def is_panorama_wanted(  # noqa: C901
 	pano: Panorama, session: aiohttp.ClientSession, options: LocationOptions | None = None
 ) -> bool:
 	if options is None:
@@ -101,11 +113,9 @@ async def is_panorama_wanted(
 			pano = await ensure_full_pano(pano, session)
 		if pano.pano.source == 'launch':
 			return False
-	checkers = [
-		(options.trekker, is_trekker),
-		(options.intersections, is_intersection),
-		(options.buildings, has_building),
-	]
+	if not await _check_buildings(pano, session, options.buildings):
+		return False
+	checkers = [(options.trekker, is_trekker), (options.intersections, is_intersection)]
 	for option, predicate in checkers:
 		if not await _check_predicate(pano, session, option, predicate):
 			return False

@@ -178,13 +178,13 @@ async def camera_gen(pano: Panorama, session: 'aiohttp.ClientSession'):
 	return None
 
 
-async def has_building(pano: Panorama, session: 'aiohttp.ClientSession'):
-	"""Returns true if the panorama has a building nearby, or is a trekker of a building."""
+async def has_building(pano: Panorama, session: 'aiohttp.ClientSession') -> bool | None:
+	"""Returns true if the panorama has a building nearby, or is a trekker of a building. None if we cannot be sure."""
 	# TODO: Does this only work if the locale is set to en?
 	if not pano.has_places:
 		pano = await ensure_full_pano(pano, session)
 
 	if not pano.pano.places:
-		return False
+		return None
 
 	return any(place.type.value not in not_building_place_types for place in pano.pano.places)

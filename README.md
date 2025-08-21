@@ -13,3 +13,4 @@ To run from command line use python -m geoguessr_map_maker {options}
 - Keep track of rejected locations
 - Optionally use get_coverage_tile instead (which returns much less panos and is much less fun, but it is faster)
 - Decompress .zst, .gz input files (not sure if geopandas opens gzip automatically but I'm fairly sure it doesn't do zstd)
+- Operate on an existing map .json as input, either reusing pano ID (but applying LocationOptions checks as appropriate) if it is there, or getting it if it isn't
