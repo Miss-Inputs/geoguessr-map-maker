@@ -6,7 +6,7 @@ import shapely
 from shapely.geometry.base import BaseGeometry
 from tqdm.auto import tqdm
 
-from .coordinate import Coordinate, find_point, pano_to_coordinate
+from .coordinate import Coordinate, PanningModeType, find_point, pano_to_coordinate
 from .regions import iter_boundaries
 
 if TYPE_CHECKING:
@@ -31,8 +31,8 @@ async def find_locations_in_row(
 	finder: 'PanoFinder',
 	row: 'pandas.Series',
 	name: str | None = None,
+	panning: PanningModeType = None,
 	*,
-	pan_to_original_point: bool = True,
 	snap_to_original_point: bool = False,
 	include_row_data: bool = True,
 ) -> AsyncIterator[Coordinate]:
@@ -59,19 +59,18 @@ async def find_locations_in_row(
 			finder.session,
 			finder.radius,
 			extra,
-			pan_to_original_point=pan_to_original_point,
+			finder.options,
+			panning,
+			None,
+			finder.locale,
 			snap_to_original_point=snap_to_original_point,
 		)
 		if loc:
 			yield loc
 	else:
 		async for pano in finder.find_locations_in_geometry(geometry, name):
-			# TODO: Do we always want to keep the original pano's heading/pitch? Or all of the row's data?
 			yield pano_to_coordinate(
-				pano.pano,
-				extra=extra,
-				pan_to_original_point=pan_to_original_point,
-				snap_to_original_point=snap_to_original_point,
+				pano.pano, extra=extra, panning=panning, snap_to_original_point=False
 			)
 
 
@@ -79,8 +78,8 @@ async def find_locations_in_geodataframe(
 	finder: 'PanoFinder',
 	gdf: 'geopandas.GeoDataFrame',
 	name_col: Hashable | None = None,
+	panning: PanningModeType = None,
 	*,
-	pan_to_original_point: bool = True,
 	snap_to_original_point: bool = False,
 	include_row_data: bool = True,
 ) -> Collection[Coordinate]:
@@ -88,7 +87,6 @@ async def find_locations_in_geodataframe(
 
 	Arguments:
 		name_col: Column in gdf to use for displayng progress bars, logging, etc.
-		pan_to_original_point: For point geometries, whether to pan towards the original point, defaults to true.
 		snap_to_original_points: For point geometries, returns the original point as the actual location in the map, so while the panorama will be loaded wherever it is found, the point where players actually click is potentially somewhere else. Not recommended as it would be unexpected.
 		include_row_data: Include scalar data from the row in the extra field.
 	"""
@@ -107,7 +105,7 @@ async def find_locations_in_geodataframe(
 			finder,
 			row,
 			name,
-			pan_to_original_point=pan_to_original_point,
+			panning,
 			snap_to_original_point=snap_to_original_point,
 			include_row_data=include_row_data,
 		)

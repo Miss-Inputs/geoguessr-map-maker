@@ -5,7 +5,7 @@ from collections.abc import Iterable
 
 import shapely
 from shapely.geometry.base import BaseMultipartGeometry
-from tqdm.auto import tqdm  # TODO: Should be an optional dependency probably
+from tqdm.auto import tqdm
 
 
 def constrained_triangulate(poly: shapely.Polygon) -> Iterable[shapely.Polygon]:
@@ -74,12 +74,17 @@ def find_splitting_line(
 def split_around_interiors(
 	poly: shapely.Polygon, *, use_tqdm: bool = True, use_triangle: bool = False
 ) -> Iterable[shapely.Polygon]:
-	"""Returns polygons that are guaranteed to not have holes in them, which are poly but split up"""
+	"""Returns polygons that are guaranteed to not have holes in them, which are created from `poly` but split up.
+
+	Arguments:
+		poly: Input polygon.
+		use_tqdm: Display a progress bar with tqdm.
+		use_triangle: Use the triangle library, will likely throw an import error if you do not have it installed.
+	"""
 	if use_triangle:
 		return constrained_triangulate(poly)
 	shapely.prepare(poly)
 	exterior: shapely.LinearRing = poly.exterior
-	# coords = exterior.coords
 	lines = [
 		find_splitting_line(exterior, interior)
 		for interior in (

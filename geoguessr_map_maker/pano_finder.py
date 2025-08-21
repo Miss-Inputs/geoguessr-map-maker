@@ -349,7 +349,6 @@ class LatticeFinder(PanoFinder):
 class RandomFinder(PanoFinder):
 	"""Finds a certain amount of random points in each geometry."""
 
-	# TODO: Command line options to use this
 	# TODO: Ensure this actually finds n points instead of just searching n points, which will be tricky
 	# We will need some kind of "maximum attempts per region" argument for that to not be a bad idea
 

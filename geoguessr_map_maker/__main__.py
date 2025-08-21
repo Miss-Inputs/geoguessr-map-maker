@@ -80,13 +80,12 @@ async def generate(
 	intersections: PredicateOption = PredicateOption.Ignore,
 	buildings: PredicateOption = PredicateOption.Ignore,
 	as_region_map: bool = False,
+	overwrite: bool=False
 ):
 	# TODO: Allow input_file to not actually be a filesystem path, because geopandas read_file can get URLs and that sort of thing
 	# TODO: Autodetect input_file_type, e.g. if zip (and contains stops.txt) then it should be GTFS
 
 	if output_file is None:
-		# TODO: Avoid clobbering output_file
-		# Even better: If it is a map, only overwrite the customCoordinates field
 		output_file = input_file.with_suffix('.json')
 	if radius is None:
 		radius = 50
@@ -219,7 +218,7 @@ def main():
 	stats_parser.add_argument(
 		'type',
 		nargs='?',
-		help=StatsType.__doc__,
+		help='What to use to get stats. Defaults to CountryCode',
 		choices=StatsType._member_names_,
 		default='CountryCode',
 	)

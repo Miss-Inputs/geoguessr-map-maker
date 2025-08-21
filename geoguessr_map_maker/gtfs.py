@@ -49,7 +49,7 @@ async def find_stop(
 	session: 'aiohttp.ClientSession',
 	radius: int = 50,
 	options: 'LocationOptions | None' = None,
-):
+) -> Coordinate | None:
 	extra = {k: v for k, v in stop.row.items() if k not in {'stop_lat', 'stop_lon'} and v}
 	if 'stop_code' in extra and extra['stop_id'] == extra['stop_code']:
 		del extra['stop_code']
