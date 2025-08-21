@@ -52,7 +52,7 @@ def pano_to_coordinate(
 	*,
 	pan_to_original_point: bool | None=None,
 	snap_to_original_point: bool = False,
-):
+) -> Coordinate:
 	"""
 	Creates a GeoGuessr map location object from a panorama.
 	

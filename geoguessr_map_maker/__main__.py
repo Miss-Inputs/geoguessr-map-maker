@@ -11,8 +11,8 @@ import aiohttp
 from tqdm.contrib.logging import logging_redirect_tqdm
 
 from .coordinate import CoordinateMap
+from .gdf_finder import find_locations_in_geodataframe, gdf_to_regions_map
 from .gdf_utils import autodetect_name_col, read_geo_file_async
-from .geodataframes import find_locations_in_geodataframe, gdf_to_regions_map
 from .gtfs import find_stops, load_gtfs_stops
 from .pano_finder import LatticeFinder, LocationOptions, PointFinder, PredicateOption, RandomFinder
 from .stats import StatsType, print_stats

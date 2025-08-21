@@ -1,5 +1,5 @@
 from .coordinate import Coordinate, CoordinateMap, pano_to_coordinate
-from .geodataframes import (
+from .gdf_finder import (
 	find_locations_in_geodataframe,
 	find_locations_in_row,
 	gdf_to_regions,
