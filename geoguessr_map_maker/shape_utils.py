@@ -128,3 +128,20 @@ def random_points_in_poly(
 		)
 		if (not ensure_n) or (len(all_points) >= n):
 			return all_points[:n]
+
+
+def random_points_in_line(line: shapely.LineString, n: int, random: RandomType = None):
+	if not isinstance(random, numpy.random.Generator):
+		random = numpy.random.default_rng(random)
+	#random.random does not ever return exactly 1, but that's fine really
+	fractions = random.random(n)
+	return set(line.interpolate(fractions, normalized=True))
+
+def spaced_points_in_line(line: shapely.LineString, radius: int):
+	#radius being metres only makes sense if we project it
+	projected = shapely.ops.transform(wgs84_to_mercator.transform, line)
+	shapely.prepare(projected)
+	spaces = numpy.arange(0, line.length, radius)
+	points = line.interpolate(spaces)
+	return {shapely.ops.transform(mercator_to_wgs84, point) for point in points}
+	

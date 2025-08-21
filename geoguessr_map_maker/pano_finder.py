@@ -16,7 +16,12 @@ from streetlevel.geo import tile_coord_to_wgs84, wgs84_to_tile_coord
 from tqdm.auto import tqdm
 
 from .pano import Panorama, camera_gen, ensure_full_pano, has_building, is_intersection, is_trekker
-from .shape_utils import get_polygon_lattice, random_points_in_poly
+from .shape_utils import (
+	get_polygon_lattice,
+	random_points_in_line,
+	random_points_in_poly,
+	spaced_points_in_line,
+)
 
 if TYPE_CHECKING:
 	from shapely.geometry.base import BaseGeometry
@@ -263,7 +268,9 @@ class PanoFinder(ABC):
 		if isinstance(geometry, shapely.MultiLineString):
 			return self.points_in_mutlilinestring(geometry, name)
 		# Point is handled differently
-		raise NotImplementedError(geometry.geom_type)
+		raise NotImplementedError(
+			f'{geometry.geom_type} is not implemented for {type(self).__name__}'
+		)
 
 	async def find_locations_in_geometry(
 		self, geometry: 'BaseGeometry', name: str | None = None
@@ -352,8 +359,7 @@ class LatticeFinder(PanoFinder):
 	def points_in_linestring(
 		self, linestring: shapely.LineString, name: str | None = None
 	) -> Iterable[shapely.Point]:
-		# TODO: Sample all the points along the line according to the radius
-		raise NotImplementedError(linestring.geom_type)
+		return spaced_points_in_line(linestring, self.radius)
 
 
 class RandomFinder(PanoFinder):
@@ -388,8 +394,7 @@ class RandomFinder(PanoFinder):
 	def points_in_linestring(
 		self, linestring: shapely.LineString, name: str | None = None
 	) -> Iterable[shapely.Point]:
-		# TODO: Sample all the points along the line according to the radius
-		raise NotImplementedError(linestring.geom_type)
+		return random_points_in_line(linestring, self.n)
 
 
 async def get_panos_in_geometry_via_tiles(
