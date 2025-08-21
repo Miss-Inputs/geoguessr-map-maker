@@ -1,5 +1,6 @@
 import asyncio
 import json
+import logging
 from argparse import ArgumentParser, BooleanOptionalAction
 from collections.abc import Collection, Hashable
 from enum import Enum, auto
@@ -49,6 +50,7 @@ async def generate_points(
 	name_col: Hashable | None,
 	radius: int,
 	n: int | None,
+	max_retries: int | None,
 	finder_type: FinderType,
 	options: LocationOptions,
 	panning: PanningModeType = None,
@@ -61,7 +63,7 @@ async def generate_points(
 		elif finder_type == 'random':
 			if not n:
 				n = 100_000 // gdf.index.size
-			finder = RandomFinder(session, radius, n, options, ensure_n=ensure_n)
+			finder = RandomFinder(session, radius, n, max_retries, options, ensure_n=ensure_n)
 		elif finder_type == 'points':
 			finder = PointFinder(session, radius, options)
 		return await find_locations_in_geodataframe(finder, gdf, name_col, panning)
@@ -100,6 +102,7 @@ async def generate(
 	name_col: Hashable | None = None,
 	radius: int | None = None,
 	n: int | None = None,
+	max_retries: int | None = 50,
 	finder_type: FinderType = 'random',
 	*,
 	reject_gen_1: bool = False,
@@ -133,7 +136,7 @@ async def generate(
 			return
 
 		locations = await generate_points(
-			gdf, name_col, radius, n, finder_type, options, ensure_n=ensure_n
+			gdf, name_col, radius, n, max_retries, finder_type, options, ensure_n=ensure_n
 		)
 	elif input_file_type == InputFileType.GTFS:
 		locations = await generate_gtfs(input_file, radius, options)
@@ -202,6 +205,12 @@ def main():
 		type=int,
 		help='For method = random, number of points to generate per region (row in input_file), or 0 (default) to sum up to 100K locations',
 		default=0,
+	)
+	gen_parser.add_argument(
+		'--max-retries',
+		type=int,
+		help='For method = random and --ensure-balance, maximum number of attempts to find n locations before giving up, default 50',
+		default=50,
 	)
 	gen_parser.add_argument(
 		'--ensure-balance',
@@ -286,6 +295,7 @@ def main():
 				args.name_col,
 				args.radius,
 				args.n,
+				args.max_retries,
 				args.method,
 				reject_gen_1=not args.allow_gen_1,
 				unofficial=PredicateOption.Ignore
@@ -313,4 +323,5 @@ def main():
 
 
 with logging_redirect_tqdm():
+	logging.basicConfig(level=logging.INFO)
 	main()

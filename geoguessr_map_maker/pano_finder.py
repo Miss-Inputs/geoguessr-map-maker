@@ -367,6 +367,7 @@ class RandomFinder(PanoFinder):
 		session: 'aiohttp.ClientSession',
 		radius: int = 50,
 		n: int = 100,
+		max_retries: int | None = 50,
 		options: LocationOptions | None = None,
 		locale: str = 'en',
 		*,
@@ -374,6 +375,7 @@ class RandomFinder(PanoFinder):
 		use_tqdm: bool = True,
 	):
 		self.n = n
+		self.max_retries = max_retries
 		self.ensure_n = ensure_n
 		super().__init__(session, radius, options, locale, use_tqdm=use_tqdm)
 
@@ -407,8 +409,13 @@ class RandomFinder(PanoFinder):
 				while len(total_panos) < self.n:
 					tries += 1
 					t.set_postfix(tries=tries)
-					# TODO We will probably need some kind of "maximum attempts per region" argument here
-					# For now we accept the risk that it runs forever
+					if self.max_retries and (tries > self.max_retries):
+						logger.info(
+							'Bailing out of %s, max tries reached and only found %d coords',
+							name or 'geometry',
+							len(total_panos),
+						)
+						break
 					try:
 						points = self._points_in_geometry(geometry)
 					except NotImplementedError:
@@ -425,7 +432,7 @@ class RandomFinder(PanoFinder):
 						]
 						t.update(len(panos))
 						total_panos += panos
-				for pano in total_panos[:self.n]:
+				for pano in total_panos[: self.n]:
 					yield pano
 			return
 
