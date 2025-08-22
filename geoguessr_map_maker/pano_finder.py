@@ -164,14 +164,12 @@ async def find_location(
 	"""
 	if isinstance(point, shapely.Point):
 		return await find_location(
-			(point.y, point.x), session=session, radius=radius, locale=locale, options=options
+			(point.y, point.x), session, radius, locale=locale, options=options
 		)
 	lat, lon = point
 	allow_third_party = options.third_party != PredicateOption.Reject if options else False
 	# Try official coverage first, because it is unlikely we would ever _prefer_ third party even if looking for both
-	pano = await find_panorama_backoff(
-		lat, lon, session=session, radius=radius, locale=locale, search_third_party=False
-	)
+	pano = await find_panorama_backoff(lat, lon, session, radius, locale, search_third_party=False)
 	if not pano or not await is_panorama_wanted(pano, session, options):
 		if allow_third_party:
 			pano = await find_panorama_backoff(

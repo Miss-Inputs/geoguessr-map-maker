@@ -187,7 +187,12 @@ _panning_modes = {
 
 def parse_location_option_args(args: Namespace) -> LocationOptions:
 	return LocationOptions(
-		args.trekker, args.gen_1, args.intersections, args.buildings, args.unofficial, args.terminus
+		_predicates[args.trekker],
+		_predicates[args.gen_1],
+		_predicates[args.intersections],
+		_predicates[args.buildings],
+		_predicates[args.unofficial],
+		_predicates[args.terminus],
 	)
 
 
@@ -262,6 +267,7 @@ def main():
 		'--panning',
 		help="How to set panning/heading: default (keep the panorama's panning, generally same direction as the road), original point (for points, find the original point), random (random panning each time), skewed (90 degrees from default), auto (original_point for points and default otherwise)",
 		choices=_panning_modes,
+		default='auto'
 	)
 
 	options_group = gen_parser.add_argument_group(
