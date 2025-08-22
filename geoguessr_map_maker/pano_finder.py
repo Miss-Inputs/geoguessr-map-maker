@@ -2,6 +2,7 @@ import itertools
 import json
 import logging
 from abc import ABC, abstractmethod
+from asyncio import Semaphore, create_task
 from collections.abc import AsyncIterator, Callable, Coroutine, Iterable
 from dataclasses import dataclass
 from enum import Enum, auto
@@ -179,6 +180,7 @@ class PanoFinder(ABC):
 	def __init__(
 		self,
 		session: 'aiohttp.ClientSession',
+		max_connections: int = 1,
 		radius: int = 50,
 		options: LocationOptions | None = None,
 		locale: str = 'en',
@@ -190,6 +192,13 @@ class PanoFinder(ABC):
 		self.options = options
 		self.locale = locale
 		self.use_tqdm = use_tqdm
+		self.semaphore = Semaphore(max_connections)
+
+	async def _find_location(self, point: shapely.Point | tuple[float, float]):
+		async with self.semaphore:
+			return await find_location(
+				point, self.session, self.radius, locale=self.locale, options=self.options
+			)
 
 	async def find_locations(
 		self,
@@ -198,20 +207,18 @@ class PanoFinder(ABC):
 		*,
 		disable_tqdm: bool = False,
 	) -> AsyncIterator[Panorama]:
-		for point in tqdm(
-			points,
-			f'Finding locations for {name or "points"}',
+		tasks = [
+			create_task(self._find_location(point), name=f'find_location {point}')
+			for point in points
+		]
+		for result in tqdm.as_completed(
+			tasks,
+			desc=f'Finding locations for {name or "points"}',
 			unit='point',
 			leave=False,
 			disable=disable_tqdm or not self.use_tqdm,
 		):
-			pano = await find_location(
-				point,
-				session=self.session,
-				radius=self.radius,
-				locale=self.locale,
-				options=self.options,
-			)
+			pano = await result
 			if pano:
 				yield pano
 
@@ -365,6 +372,7 @@ class RandomFinder(PanoFinder):
 	def __init__(
 		self,
 		session: 'aiohttp.ClientSession',
+		max_connections: int = 1,
 		radius: int = 50,
 		n: int = 100,
 		max_retries: int | None = 50,
@@ -377,7 +385,7 @@ class RandomFinder(PanoFinder):
 		self.n = n
 		self.max_retries = max_retries
 		self.ensure_n = ensure_n
-		super().__init__(session, radius, options, locale, use_tqdm=use_tqdm)
+		super().__init__(session, max_connections, radius, options, locale, use_tqdm=use_tqdm)
 
 	def points_in_polygon(
 		self, polygon: shapely.Polygon | shapely.MultiPolygon, name: str | None = None

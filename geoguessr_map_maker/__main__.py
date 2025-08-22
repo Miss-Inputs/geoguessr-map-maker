@@ -51,6 +51,7 @@ async def generate_points(
 	radius: int,
 	n: int | None,
 	max_retries: int | None,
+	max_connections: int,
 	finder_type: FinderType,
 	options: LocationOptions,
 	panning: PanningModeType = None,
@@ -59,13 +60,15 @@ async def generate_points(
 ) -> Collection[Coordinate]:
 	async with aiohttp.ClientSession() as session:
 		if finder_type == 'lattice':
-			finder = LatticeFinder(session, radius, options)
+			finder = LatticeFinder(session, max_connections, radius, options)
 		elif finder_type == 'random':
 			if not n:
 				n = 100_000 // gdf.index.size
-			finder = RandomFinder(session, radius, n, max_retries, options, ensure_n=ensure_n)
+			finder = RandomFinder(
+				session, max_connections, radius, n, max_retries, options, ensure_n=ensure_n
+			)
 		elif finder_type == 'points':
-			finder = PointFinder(session, radius, options)
+			finder = PointFinder(session, max_connections, radius, options)
 		return await find_locations_in_geodataframe(finder, gdf, name_col, panning)
 
 
@@ -103,6 +106,7 @@ async def generate(
 	radius: int | None = None,
 	n: int | None = None,
 	max_retries: int | None = 50,
+	max_connections: int = 1,
 	finder_type: FinderType = 'random',
 	*,
 	reject_gen_1: bool = False,
@@ -136,7 +140,15 @@ async def generate(
 			return
 
 		locations = await generate_points(
-			gdf, name_col, radius, n, max_retries, finder_type, options, ensure_n=ensure_n
+			gdf,
+			name_col,
+			radius,
+			n,
+			max_retries,
+			max_connections,
+			finder_type,
+			options,
+			ensure_n=ensure_n,
 		)
 	elif input_file_type == InputFileType.GTFS:
 		locations = await generate_gtfs(input_file, radius, options)
@@ -217,6 +229,12 @@ def main():
 		action=BooleanOptionalAction,
 		help='Try and ensure n points end up being found in each geometry, continually retrying until this happens, defualt true',
 		default=False,
+	)
+	gen_parser.add_argument(
+		'--max-connections',
+		type=int,
+		help='Maximum number of simultaneous connections to Google Maps, defaults to 1',
+		default=1,
 	)
 	gen_parser.add_argument(
 		'--region-map',
