@@ -189,7 +189,11 @@ async def has_building(pano: Panorama, session: 'aiohttp.ClientSession') -> bool
 
 	return any(place.type.value not in not_building_place_types for place in pano.pano.places)
 
+
 async def is_terminus(pano: Panorama, session: 'aiohttp.ClientSession') -> bool:
 	if not pano.has_extended_info:
 		pano = await ensure_full_pano(pano, session)
+	if pano.pano.street_names and len(pano.pano.street_names) > 1:
+		# Don't want to rely on that too much due to false positives, but more than one street present means we are definitely not a terminus
+		return False
 	return len(pano.pano.links) == 1

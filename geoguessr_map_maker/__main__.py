@@ -267,7 +267,7 @@ def main():
 		'--panning',
 		help="How to set panning/heading: default (keep the panorama's panning, generally same direction as the road), original point (for points, find the original point), random (random panning each time), skewed (90 degrees from default), auto (original_point for points and default otherwise)",
 		choices=_panning_modes,
-		default='auto'
+		default='auto',
 	)
 
 	options_group = gen_parser.add_argument_group(
