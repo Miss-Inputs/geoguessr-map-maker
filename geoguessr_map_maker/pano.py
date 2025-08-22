@@ -188,3 +188,8 @@ async def has_building(pano: Panorama, session: 'aiohttp.ClientSession') -> bool
 		return None
 
 	return any(place.type.value not in not_building_place_types for place in pano.pano.places)
+
+async def is_terminus(pano: Panorama, session: 'aiohttp.ClientSession') -> bool:
+	if not pano.has_extended_info:
+		pano = await ensure_full_pano(pano, session)
+	return len(pano.pano.links) == 1

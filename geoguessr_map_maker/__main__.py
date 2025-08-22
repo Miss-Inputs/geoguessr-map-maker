@@ -1,7 +1,7 @@
 import asyncio
 import json
 import logging
-from argparse import ArgumentParser, BooleanOptionalAction
+from argparse import ArgumentParser, BooleanOptionalAction, Namespace
 from collections.abc import Collection, Hashable
 from enum import Enum, auto
 from pathlib import Path
@@ -101,6 +101,7 @@ async def output_locations(locations: Collection[Coordinate], name: str, output_
 async def generate(
 	input_file: Path,
 	input_file_type: InputFileType,
+	options: LocationOptions,
 	output_file: Path | None = None,
 	name_col: Hashable | None = None,
 	radius: int | None = None,
@@ -109,11 +110,6 @@ async def generate(
 	max_connections: int = 1,
 	finder_type: FinderType = 'random',
 	*,
-	reject_gen_1: bool = False,
-	unofficial: PredicateOption = PredicateOption.Reject,
-	trekker: PredicateOption = PredicateOption.Ignore,
-	intersections: PredicateOption = PredicateOption.Ignore,
-	buildings: PredicateOption = PredicateOption.Ignore,
 	as_region_map: bool = False,
 	ensure_n: bool = False,
 ):
@@ -124,13 +120,6 @@ async def generate(
 		output_file = input_file.with_suffix('.json')
 	if radius is None:
 		radius = 50
-	options = LocationOptions(
-		reject_gen_1=reject_gen_1,
-		trekker=trekker,
-		intersections=intersections,
-		buildings=buildings,
-		allow_third_party=unofficial,
-	)
 
 	if input_file_type == InputFileType.GeoJSON:
 		gdf = await read_geo_file_async(input_file)
@@ -185,6 +174,12 @@ _predicates = {
 	'require': PredicateOption.Require,
 	'reject': PredicateOption.Reject,
 }
+
+
+def parse_location_option_args(args: Namespace) -> LocationOptions:
+	return LocationOptions(
+		args.trekker, args.gen_1, args.intersections, args.buildings, args.unofficial, args.terminus
+	)
 
 
 def main():
@@ -248,15 +243,14 @@ def main():
 		dest='file_type',
 		help='Read input_file as a GTFS feed and make a map of the stops',
 	)
-	# TODO: The rest of LocationOptions: allow_unofficial = Require
 	options_group = gen_parser.add_argument_group(
 		'Location options', 'What locations to allow/require/reject'
 	)
 	options_group.add_argument(
-		'--allow-gen-1',
-		action=BooleanOptionalAction,
-		help='Allow official gen 1 coverage, defaults to false',
-		default=False,
+		'--gen-1',
+		help='Allow/ignore, require or reject official gen 1 coverage, defaults to reject',
+		choices=_predicates,
+		default='reject',
 	)
 	options_group.add_argument(
 		'--intersections',
@@ -271,7 +265,22 @@ def main():
 		default='allow',
 	)
 	options_group.add_argument(
-		'--allow-unofficial', action='store_true', help='Allow unofficial coverage, default reject'
+		'--unofficial',
+		help='Allow/ignore, require, or reject unofficial coverage, default reject',
+		choices=_predicates,
+		default='reject',
+	)
+	options_group.add_argument(
+		'--trekker',
+		help='Allow/ignore, require, or reject trekker (non-car) coverage, default allow',
+		choices=_predicates,
+		default='allow',
+	)
+	options_group.add_argument(
+		'--terminus',
+		help='Allow/ignore, require, or reject locations at the end of coverage, default allow',
+		choices=_predicates,
+		default='reject',
 	)
 
 	stats_parser = subparsers.add_parser(
@@ -309,19 +318,15 @@ def main():
 			generate(
 				args.input_file,
 				args.file_type or InputFileType.GeoJSON,
+				parse_location_option_args(args),
 				args.output_file,
 				args.name_col,
 				args.radius,
 				args.n,
 				args.max_retries,
+				args.max_connections,
 				args.method,
-				reject_gen_1=not args.allow_gen_1,
-				unofficial=PredicateOption.Ignore
-				if args.allow_unofficial
-				else PredicateOption.Reject,
 				as_region_map=args.region_map or False,
-				intersections=_predicates[args.intersections],
-				buildings=_predicates[args.buildings],
 				ensure_n=args.ensure_balance,
 			)
 		)

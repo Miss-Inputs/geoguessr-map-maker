@@ -16,7 +16,7 @@ from streetlevel import streetview
 from streetlevel.geo import tile_coord_to_wgs84, wgs84_to_tile_coord
 from tqdm.auto import tqdm
 
-from .pano import Panorama, camera_gen, has_building, is_intersection, is_trekker
+from .pano import Panorama, camera_gen, has_building, is_intersection, is_terminus, is_trekker
 from .shape_utils import (
 	get_polygon_lattice,
 	random_points_in_line,
@@ -75,22 +75,24 @@ async def _check_predicate(
 class LocationOptions:
 	trekker: PredicateOption = PredicateOption.Ignore
 	"""Allow/reject/require trekker coverage"""
-	reject_gen_1: bool = False
-	"""Do not allow panoramas that are official coverage and gen 1"""
+	gen_1: PredicateOption = PredicateOption.Reject
+	"""If Reject (default), skip locations that are official coverage and gen 1, or use Require to only have gen 1 for whatever strange reason"""
 	intersections: PredicateOption = PredicateOption.Ignore
 	"""If Require, only allow panoramas that are at an intersection, or if Reject, only allow panoramas that are not at an intersection"""
 	buildings: PredicateOption = PredicateOption.Ignore
 	"""If Require, only allow panoramas that have a building nearby or are a trekker of a building, or if Reject, only allow panoramas that do not"""
-	allow_third_party: PredicateOption = PredicateOption.Reject
+	third_party: PredicateOption = PredicateOption.Reject
 	"""If Require, only allow third party panoramas, or if Reject, only allow official coverage"""
+	terminus: PredicateOption = PredicateOption.Ignore
 	# TODO: More parameters:
 	# On a road curve
 	# Minimum resolution (for third party)
 	# Gen 4 only
-	# Gen 1 only, because at that point why not
 
 
-async def _check_buildings(pano: Panorama, session: aiohttp.ClientSession, option: PredicateOption):
+async def _check_buildings(
+	pano: Panorama, session: aiohttp.ClientSession, option: PredicateOption
+) -> bool:
 	if option == PredicateOption.Ignore:
 		return True
 	building = await has_building(pano, session)
@@ -102,27 +104,39 @@ async def _check_buildings(pano: Panorama, session: aiohttp.ClientSession, optio
 	return building
 
 
+async def _check_gen_1(
+	pano: Panorama, session: aiohttp.ClientSession, option: PredicateOption
+) -> bool:
+	if option == PredicateOption.Ignore:
+		return True
+	gen = await camera_gen(pano, session)
+	if option == PredicateOption.Reject:
+		return gen is None or gen > 1
+	return gen == 1
+
+
 async def is_panorama_wanted(
 	pano: Panorama, session: aiohttp.ClientSession, options: LocationOptions | None = None
 ) -> bool:
 	if options is None:
 		options = LocationOptions()
-	if options.allow_third_party == PredicateOption.Require and not pano.pano.is_third_party:
+	if options.third_party == PredicateOption.Require and not pano.pano.is_third_party:
 		return False
-	if options.allow_third_party == PredicateOption.Reject and pano.pano.is_third_party:
+	if options.third_party == PredicateOption.Reject and pano.pano.is_third_party:
 		return False
 
 	if not await _check_buildings(pano, session, options.buildings):
 		return False
-	checkers = [(options.trekker, is_trekker), (options.intersections, is_intersection)]
+	checkers = [
+		(options.trekker, is_trekker),
+		(options.intersections, is_intersection),
+		(options.terminus, is_terminus),
+	]
 	for option, predicate in checkers:
 		if not await _check_predicate(pano, session, option, predicate):
 			return False
 
-	gen = await camera_gen(pano, session)
-	if options.reject_gen_1:
-		return gen is None or gen > 1
-	return True
+	return await _check_gen_1(pano, session, options.gen_1)
 
 
 async def filter_panos(
@@ -153,7 +167,7 @@ async def find_location(
 			(point.y, point.x), session=session, radius=radius, locale=locale, options=options
 		)
 	lat, lon = point
-	allow_third_party = options.allow_third_party != PredicateOption.Reject if options else False
+	allow_third_party = options.third_party != PredicateOption.Reject if options else False
 	# Try official coverage first, because it is unlikely we would ever _prefer_ third party even if looking for both
 	pano = await find_panorama_backoff(
 		lat, lon, session=session, radius=radius, locale=locale, search_third_party=False
