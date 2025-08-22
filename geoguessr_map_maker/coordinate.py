@@ -140,7 +140,7 @@ async def find_point(
 	radius: int = 50,
 	extra: dict[str, Any] | None = None,
 	options: LocationOptions | None = None,
-	panning: PanningModeType = None,
+	panning: PanningModeType = PanningMode.OriginalPoint,
 	random: 'RandomType' = None,
 	locale: str = 'en',
 	*,

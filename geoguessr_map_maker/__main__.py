@@ -13,7 +13,7 @@ import geopandas
 import shapely
 from tqdm.contrib.logging import logging_redirect_tqdm
 
-from .coordinate import Coordinate, CoordinateMap, PanningModeType
+from .coordinate import Coordinate, CoordinateMap, PanningMode, PanningModeType
 from .gdf_finder import find_locations_in_geodataframe, gdf_to_regions_map
 from .gdf_utils import autodetect_name_col, read_geo_file_async
 from .gtfs import find_stops, load_gtfs_stops
@@ -54,7 +54,7 @@ async def generate_points(
 	max_connections: int,
 	finder_type: FinderType,
 	options: LocationOptions,
-	panning: PanningModeType = None,
+	panning: PanningModeType,
 	*,
 	ensure_n: bool,
 ) -> Collection[Coordinate]:
@@ -109,6 +109,7 @@ async def generate(
 	max_retries: int | None = 50,
 	max_connections: int = 1,
 	finder_type: FinderType = 'random',
+	panning: PanningModeType = None,
 	*,
 	as_region_map: bool = False,
 	ensure_n: bool = False,
@@ -137,6 +138,7 @@ async def generate(
 			max_connections,
 			finder_type,
 			options,
+			panning,
 			ensure_n=ensure_n,
 		)
 	elif input_file_type == InputFileType.GTFS:
@@ -174,6 +176,13 @@ _predicates = {
 	'require': PredicateOption.Require,
 	'reject': PredicateOption.Reject,
 }
+_panning_modes = {
+	'auto': None,
+	'default': PanningMode.Default,
+	'original_point': PanningMode.OriginalPoint,
+	'random': PanningMode.Random,
+	'skewed': PanningMode.Skewed,
+}
 
 
 def parse_location_option_args(args: Namespace) -> LocationOptions:
@@ -193,6 +202,13 @@ def main():
 		type=Path,
 		help='Path to output file, or default to input_file with .json suffix',
 		nargs='?',
+	)
+	gen_parser.add_argument(
+		'--from-gtfs',
+		action='store_const',
+		const=InputFileType.GTFS,
+		dest='file_type',
+		help='Read input_file as a GTFS feed and make a map of the stops',
 	)
 	gen_parser.add_argument(
 		'--method',
@@ -236,13 +252,18 @@ def main():
 		action='store_true',
 		help='Generate a region map instead of finding coordinates in each area, ignoring arguments like radius etc.',
 	)
-	gen_parser.add_argument(
-		'--from-gtfs',
-		action='store_const',
-		const=InputFileType.GTFS,
-		dest='file_type',
-		help='Read input_file as a GTFS feed and make a map of the stops',
+
+	pano_group = gen_parser.add_argument_group(
+		'Location options', 'How to handle the generated location once found'
 	)
+	# Hmm this probably could use a better name and description (pitch/zoom would go in here, for example)
+	# I don't think there's a good way to allow a constant value to panning as well, without getting rid of choices making it less user-friendly for a very niche use case
+	pano_group.add_argument(
+		'--panning',
+		help="How to set panning/heading: default (keep the panorama's panning, generally same direction as the road), original point (for points, find the original point), random (random panning each time), skewed (90 degrees from default), auto (original_point for points and default otherwise)",
+		choices=_panning_modes,
+	)
+
 	options_group = gen_parser.add_argument_group(
 		'Location options', 'What locations to allow/require/reject'
 	)
@@ -280,7 +301,7 @@ def main():
 		'--terminus',
 		help='Allow/ignore, require, or reject locations at the end of coverage, default allow',
 		choices=_predicates,
-		default='reject',
+		default='allow',
 	)
 
 	stats_parser = subparsers.add_parser(
@@ -326,6 +347,7 @@ def main():
 				args.max_retries,
 				args.max_connections,
 				args.method,
+				_panning_modes[args.panning],
 				as_region_map=args.region_map or False,
 				ensure_n=args.ensure_balance,
 			)
