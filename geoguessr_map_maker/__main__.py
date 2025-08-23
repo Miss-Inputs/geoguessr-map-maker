@@ -116,7 +116,6 @@ async def generate(
 ):
 	# TODO: Allow input_file to not actually be a filesystem path, because geopandas read_file can get URLs and that sort of thing
 	# TODO: Autodetect input_file_type, e.g. if zip (and contains stops.txt) then it should be GTFS
-
 	if output_file is None:
 		output_file = input_file.with_suffix('.json')
 	if radius is None:
@@ -197,6 +196,7 @@ def parse_location_option_args(args: Namespace) -> LocationOptions:
 
 
 def main():
+	logging.basicConfig(level=logging.INFO)
 	argparser = ArgumentParser()
 	subparsers = argparser.add_subparsers(dest='subcommand', required=False)
 
@@ -340,39 +340,38 @@ def main():
 	)
 
 	args = argparser.parse_args()
-	if args.subcommand in {'generate', 'gen'}:
-		asyncio.run(
-			generate(
-				args.input_file,
-				args.file_type or InputFileType.GeoJSON,
-				parse_location_option_args(args),
-				args.output_file,
-				args.name_col,
-				args.radius,
-				args.n,
-				args.max_retries,
-				args.max_connections,
-				args.method,
-				_panning_modes[args.panning],
-				as_region_map=args.region_map or False,
-				ensure_n=args.ensure_balance,
+	with logging_redirect_tqdm():
+		if args.subcommand in {'generate', 'gen'}:
+			asyncio.run(
+				generate(
+					args.input_file,
+					args.file_type or InputFileType.GeoJSON,
+					parse_location_option_args(args),
+					args.output_file,
+					args.name_col,
+					args.radius,
+					args.n,
+					args.max_retries,
+					args.max_connections,
+					args.method,
+					_panning_modes[args.panning],
+					as_region_map=args.region_map or False,
+					ensure_n=args.ensure_balance,
+				)
 			)
-		)
-	elif args.subcommand == 'stats':
-		asyncio.run(
-			stats(
-				args.input_file,
-				args.type,
-				args.regions_file,
-				args.name_col,
-				args.output_file,
-				as_percentage=args.as_percentage,
+		elif args.subcommand == 'stats':
+			asyncio.run(
+				stats(
+					args.input_file,
+					args.type,
+					args.regions_file,
+					args.name_col,
+					args.output_file,
+					as_percentage=args.as_percentage,
+				)
 			)
-		)
-	else:
-		raise ValueError(f'Somehow got incorrect subcommand: {args.subcommand!r}')
+		else:
+			raise ValueError(f'Somehow got incorrect subcommand: {args.subcommand!r}')
 
 
-with logging_redirect_tqdm():
-	logging.basicConfig(level=logging.INFO)
-	main()
+main()
