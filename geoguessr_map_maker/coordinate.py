@@ -102,7 +102,7 @@ def pano_to_coordinate(
 			If OriginalPoint, pan towards the original point, which requires original_lat and original_lng to be provided.
 			If Random, pan in a random direction.
 			If None, use OriginalPoint if original_lat and original_lng are passed in, or Default otherwise.
-		snap_to_original_points: Returns the original point as the actual location in the map, so while the panorama will be loaded wherever it is found, the point where players actually click is potentially somewhere else. Not recommended as it would be unexpected.
+		snap_to_original_point: Returns the original point as the actual location in the map, so while the panorama will be loaded wherever it is found, the point where players actually click is potentially somewhere else. Not recommended as it would be unexpected.
 
 	Raises:
 		ValueError: If panning = original_point or snap_to_original_point is True but original_lat and original_lng are not provided.
@@ -150,7 +150,7 @@ async def find_point(
 
 	Arguments:
 		extra: Optional extra information to be stored in the "extra" field. Ignored by GeoGuessr but can be used by other tools.
-		snap_to_original_points: Returns the original point as the actual location in the map, so while the panorama will be loaded wherever it is found, the point where players actually click is potentially somewhere else. Not recommended as it would be unexpected.
+		snap_to_original_point: Returns the original point as the actual location in the map, so while the panorama will be loaded wherever it is found, the point where players actually click is potentially somewhere else. Not recommended as it would be unexpected.
 	"""
 	pano = await find_location((lat, lng), session, radius, locale=locale, options=options)
 	if not pano:

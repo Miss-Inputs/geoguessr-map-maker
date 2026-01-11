@@ -42,7 +42,7 @@ async def find_locations_in_row(
 	Arguments:
 		finder: PanoFinder used for finding points in polygons/multipolygons/etc, point geometries will be found directly.
 		name: Name for this row. Only used for logging/displaying progress bars.
-		snap_to_original_points: For point geometries, returns the original point as the actual location in the map, so while the panorama will be loaded wherever it is found, the point where players actually click is potentially somewhere else. Not recommended as it would be unexpected.
+		snap_to_original_point: For point geometries, returns the original point as the actual location in the map, so while the panorama will be loaded wherever it is found, the point where players actually click is potentially somewhere else. Not recommended as it would be unexpected.
 		include_row_data: Include scalar data from the row in the extra field.
 	"""
 	geometry = row.geometry
@@ -86,7 +86,7 @@ async def find_locations_in_geodataframe(
 
 	Arguments:
 		name_col: Column in gdf to use for displayng progress bars, logging, etc.
-		snap_to_original_points: For point geometries, returns the original point as the actual location in the map, so while the panorama will be loaded wherever it is found, the point where players actually click is potentially somewhere else. Not recommended as it would be unexpected.
+		snap_to_original_point: For point geometries, returns the original point as the actual location in the map, so while the panorama will be loaded wherever it is found, the point where players actually click is potentially somewhere else. Not recommended as it would be unexpected.
 		include_row_data: Include scalar data from the row in the extra field.
 	"""
 	coords: list[Coordinate] = []

@@ -244,7 +244,7 @@ def main():
 	gen_parser.add_argument(
 		'--ensure-balance',
 		action=BooleanOptionalAction,
-		help='Try and ensure n points end up being found in each geometry, continually retrying until this happens, defualt true',
+		help='Try and ensure n points end up being found in each geometry, continually retrying until this happens, default false',
 		default=False,
 	)
 	gen_parser.add_argument(
