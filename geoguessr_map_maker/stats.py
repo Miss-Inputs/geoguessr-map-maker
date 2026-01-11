@@ -162,7 +162,7 @@ async def get_stats_for_files(
 	return pandas.DataFrame({col.name: col for col in columns}).fillna(0)
 
 
-async def print_stats(
+async def output_stats(
 	file: Path | Iterable[Path],
 	stats_type: StatsType,
 	regions_file: Path | None = None,
@@ -180,11 +180,21 @@ async def print_stats(
 		stats = await get_stats_for_files(
 			file, stats_type, regions_file, regions_name_col, as_percentage=as_percentage
 		)
+	# TODO: Do we want to count things in the "extra" dict too?
 
 	if output_file:
 		# TODO: To a different format if output extension is not csv
-		stats.to_csv(output_file)
+		ext = output_file.suffix[1:].lower()
+		if ext in {'ods', 'xls', 'xlsx'}:
+			#TODO: Format as percentage if as_percentage, though this requires specific things for each engine I think
+			stats.to_excel(output_file)
+		elif ext == 'csv':
+			stats.to_csv(output_file)
+		elif ext in {'htm', 'html'}:
+			stats.to_html(output_file) # pyright: ignore[reportCallIssue] #wtf Pyright?
+		else:
+			logger.warning('Extension %s not known, outputting csv by default', ext)
+			stats.to_csv(output_file)
 	else:
 		print(stats.to_string())
 
-	# TODO: Do we want to count things in the "extra" dict too?

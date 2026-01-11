@@ -18,7 +18,7 @@ from .gdf_finder import find_locations_in_geodataframe, gdf_to_regions_map
 from .gdf_utils import autodetect_name_col, read_geo_file_async
 from .gtfs import find_stops, load_gtfs_stops
 from .pano_finder import LatticeFinder, LocationOptions, PointFinder, PredicateOption, RandomFinder
-from .stats import StatsType, print_stats
+from .stats import StatsType, output_stats
 
 
 class InputFileType(Enum):
@@ -161,7 +161,7 @@ async def stats(
 		stats_type = StatsType.Regions if stats_region_file else StatsType.CountryCode
 	elif isinstance(stats_type, str):
 		stats_type = StatsType[stats_type]
-	await print_stats(
+	await output_stats(
 		input_file,
 		stats_type,
 		stats_region_file,
