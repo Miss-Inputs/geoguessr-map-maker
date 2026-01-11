@@ -150,16 +150,17 @@ async def generate(
 
 async def stats(
 	input_file: Path,
-	stats_type: str | StatsType,
+	stats_type: str | StatsType | None,
 	stats_region_file: Path | None = None,
 	name_col: Hashable | None = None,
-	output_file: str | Path | None = None,
+	output_file: Path | None = None,
 	*,
 	as_percentage: bool = True,
 ):
-	if isinstance(stats_type, str):
+	if not stats_type:
+		stats_type = StatsType.Regions if stats_region_file else StatsType.CountryCode
+	elif isinstance(stats_type, str):
 		stats_type = StatsType[stats_type]
-	output_file = Path(output_file) if output_file else None  # convert empty string
 	await print_stats(
 		input_file,
 		stats_type,
@@ -313,30 +314,33 @@ def main():
 	stats_parser = subparsers.add_parser(
 		'stats', help='Generate statistics for an input GeoGuessr map'
 	)
-	stats_parser.add_argument('input_file', type=Path, help='File to generate stats for')
 	stats_parser.add_argument(
-		'type',
-		nargs='?',
-		help='What to use to get stats. Defaults to CountryCode',
+		'input_file', type=Path, help='File(s) to generate stats for', nargs='+'
+	)
+	stats_parser.add_argument(
+		'--type',
+		help='What to use to get stats. Defaults to Regions if --regions-file is specified, else CountryCode',
 		choices=StatsType._member_names_,
-		default='CountryCode',
 	)
 	stats_parser.add_argument(
 		'--regions-file',
+		'-r',
 		type=Path,
 		help='Path to GeoJSON etc file containing regions to count each location in',
 	)
 	stats_parser.add_argument(
 		'--name-col',
+		'-n',
 		help='Column in --regions-file to interpret as the name of each row, or the first column if not specified',
 	)
 	stats_parser.add_argument(
-		'output_file', type=str, help='Path to output file, or print instead', nargs='?', default=''
+		'--output-file', '-o', type=Path, help='Path to output file, or print instead'
 	)
 	stats_parser.add_argument(
 		'--as-percentage',
 		action=BooleanOptionalAction,
-		help='Output distribution as a percentage of total locations instead of counts',
+		help='Output distribution as a percentage of total locations instead of counts, defaults to true',
+		default=True,
 	)
 
 	args = argparser.parse_args()

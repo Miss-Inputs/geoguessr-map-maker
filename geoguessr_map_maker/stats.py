@@ -1,6 +1,6 @@
 import json
 from collections import Counter
-from collections.abc import Hashable, Mapping, Sequence
+from collections.abc import Hashable, Iterable, Mapping, Sequence
 from enum import Enum, auto
 from pathlib import Path
 from typing import Any
@@ -9,6 +9,7 @@ import aiofiles
 import pandas
 import shapely
 from geopandas import GeoDataFrame
+from tqdm.auto import tqdm
 
 from .gdf_utils import autodetect_name_col, count_points_in_each_region, read_geo_file_async
 
@@ -114,13 +115,40 @@ async def get_stats_for_file(
 	as_percentage: bool = True,
 ):
 	coords = await _read_coords_from_file(file)
-	return await get_stats(
+	stats = await get_stats(
 		coords, stats_type, regions_file, regions_name_col, as_percentage=as_percentage
 	)
+	return stats.rename(file.stem)
+
+
+async def get_stats_for_files(
+	files: Iterable[Path],
+	stats_type: StatsType,
+	regions_file: Path | GeoDataFrame | None,
+	regions_name_col: Hashable | None,
+	*,
+	as_percentage: bool = True,
+):
+	regions = (
+		await read_geo_file_async(regions_file)
+		if isinstance(regions_file, (Path, str))
+		else regions_file
+	)
+	# I could use as_completed here but maybe we're just opening up too much things at once with that
+	columns = []
+	with tqdm(files, desc='Getting stats') as t:
+		for file in t:
+			t.set_postfix(file=file)
+			columns.append(
+				await get_stats_for_file(
+					file, stats_type, regions, regions_name_col, as_percentage=as_percentage
+				)
+			)
+	return pandas.DataFrame({col.name: col for col in columns}).fillna(0)
 
 
 async def print_stats(
-	file: Path,
+	file: Path | Iterable[Path],
 	stats_type: StatsType,
 	regions_file: Path | None = None,
 	regions_name_col: Hashable | None = None,
@@ -128,9 +156,15 @@ async def print_stats(
 	*,
 	as_percentage: bool = True,
 ) -> None:
-	stats = await get_stats_for_file(
-		file, stats_type, regions_file, regions_name_col, as_percentage=as_percentage
-	)
+	# Debatable if this really needs to be separate from __main__ stats()
+	if isinstance(file, Path):
+		stats = await get_stats_for_file(
+			file, stats_type, regions_file, regions_name_col, as_percentage=as_percentage
+		)
+	else:
+		stats = await get_stats_for_files(
+			file, stats_type, regions_file, regions_name_col, as_percentage=as_percentage
+		)
 
 	if output_file:
 		# TODO: To a different format if output extension is not csv
