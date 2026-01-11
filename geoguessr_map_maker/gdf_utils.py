@@ -47,23 +47,18 @@ async def read_geo_file_async(
 
 
 def count_points_in_each_region(
-	points: Iterable['Point'], regions: geopandas.GeoDataFrame, name_col: Hashable
+	points: Iterable['Point'] | geopandas.GeoSeries,
+	regions: geopandas.GeoDataFrame,
+	name_col: Hashable,
 ):
-	if not isinstance(points, (list, numpy.ndarray)):
-		points = list(points)
-	gs = geopandas.GeoSeries(points, crs=regions.crs)  # type: ignore[overload]
-	gdf = cast('geopandas.GeoDataFrame', gs.to_frame()).sjoin(
-		regions[[name_col, 'geometry']], how='left'
-	)
+	if not isinstance(points, geopandas.GeoSeries):
+		if not isinstance(points, (list, numpy.ndarray)):
+			points = list(points)
+		points = geopandas.GeoSeries(points, crs=regions.crs)  # type: ignore[overload]
+	regions = regions[[name_col, 'geometry']]
+	gdf = cast('geopandas.GeoDataFrame', points.to_frame()).sjoin(regions, how='left')
 	assert isinstance(gdf, geopandas.GeoDataFrame), type(gdf)
-	if not isinstance(name_col, (int, str)):
-		# TODO: Implement this, it's probably fine with groupby but maybe you need to ignore the type hint
-		raise TypeError(
-			f"TODO: The type of name_col is a funny type ({type(name_col)}), which is unusual and hasn't been implemented yet"
-		)
-	sizes = gdf.groupby(name_col, dropna=False, observed=False).size()
-	assert isinstance(sizes, pandas.Series), type(sizes)
-	return sizes.sort_values(ascending=False)
+	return gdf[name_col].value_counts(dropna=False)
 
 
 @overload

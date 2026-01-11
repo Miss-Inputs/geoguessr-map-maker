@@ -9,7 +9,7 @@ from typing import Any
 import aiofiles
 import pandas
 import shapely
-from geopandas import GeoDataFrame
+from geopandas import GeoDataFrame, GeoSeries
 from tqdm.auto import tqdm
 
 from .gdf_utils import autodetect_name_col, count_points_in_each_region, read_geo_file_async
@@ -27,7 +27,7 @@ CoordinateList = Sequence[Mapping[str, Any]]
 
 
 async def get_region_stats(
-	coords: CoordinateList,
+	coords: CoordinateList | GeoSeries,
 	regions_file: Path | GeoDataFrame,
 	regions_name_col: Hashable | None = None,
 	*,
@@ -49,7 +49,10 @@ async def get_region_stats(
 		else await read_geo_file_async(regions_file)
 	)
 	regions_name_col = regions_name_col or autodetect_name_col(regions, should_fallback=True)
-	points = shapely.points([(c['lng'], c['lat']) for c in coords])
+	if isinstance(coords, GeoSeries):
+		points = coords
+	else:
+		points = shapely.points([(c['lng'], c['lat']) for c in coords])
 	stats = count_points_in_each_region(points, regions, regions_name_col)
 	if as_percentage:
 		stats /= points.size
@@ -186,15 +189,14 @@ async def output_stats(
 		# TODO: To a different format if output extension is not csv
 		ext = output_file.suffix[1:].lower()
 		if ext in {'ods', 'xls', 'xlsx'}:
-			#TODO: Format as percentage if as_percentage, though this requires specific things for each engine I think
+			# TODO: Format as percentage if as_percentage, though this requires specific things for each engine I think
 			stats.to_excel(output_file)
 		elif ext == 'csv':
 			stats.to_csv(output_file)
 		elif ext in {'htm', 'html'}:
-			stats.to_html(output_file) # pyright: ignore[reportCallIssue] #wtf Pyright?
+			stats.to_html(output_file)  # pyright: ignore[reportCallIssue] #wtf Pyright?
 		else:
 			logger.warning('Extension %s not known, outputting csv by default', ext)
 			stats.to_csv(output_file)
 	else:
 		print(stats.to_string())
-
