@@ -5,11 +5,11 @@ from typing import TYPE_CHECKING, Any, Literal, cast, overload
 
 import geopandas
 import numpy
-import pandas
 from pandas.api.types import is_string_dtype
 from tqdm.auto import tqdm
 
 if TYPE_CHECKING:
+	import pandas
 	from shapely import Geometry, Point
 
 
@@ -56,23 +56,25 @@ def count_points_in_each_region(
 			points = list(points)
 		points = geopandas.GeoSeries(points, crs=regions.crs)  # type: ignore[overload]
 	regions = regions[[name_col, 'geometry']]
-	gdf = cast('geopandas.GeoDataFrame', points.to_frame()).sjoin(regions, how='left')
+	gdf = cast('geopandas.GeoDataFrame', points.to_frame()).sjoin(regions, 'left', 'within')
 	assert isinstance(gdf, geopandas.GeoDataFrame), type(gdf)
 	return gdf[name_col].value_counts(dropna=False)
 
 
 @overload
-def autodetect_name_col(df: pandas.DataFrame) -> str | None: ...
-@overload
-def autodetect_name_col(df: pandas.DataFrame, *, should_fallback: Literal[False]) -> str | None: ...
+def autodetect_name_col(df: 'pandas.DataFrame') -> str | None: ...
 @overload
 def autodetect_name_col(
-	df: pandas.DataFrame, *, should_fallback: Literal[True]
+	df: 'pandas.DataFrame', *, should_fallback: Literal[False]
+) -> str | None: ...
+@overload
+def autodetect_name_col(
+	df: 'pandas.DataFrame', *, should_fallback: Literal[True]
 ) -> str | Hashable | None: ...
 
 
 def autodetect_name_col(
-	df: pandas.DataFrame, *, should_fallback: bool = False
+	df: 'pandas.DataFrame', *, should_fallback: bool = False
 ) -> str | Hashable | None:
 	"""Attempts to find the name of a column within `df` that represents a name of each object. May return None.
 
