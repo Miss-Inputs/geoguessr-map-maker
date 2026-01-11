@@ -1,4 +1,5 @@
 import json
+import logging
 from collections import Counter
 from collections.abc import Hashable, Iterable, Mapping, Sequence
 from enum import Enum, auto
@@ -12,6 +13,8 @@ from geopandas import GeoDataFrame
 from tqdm.auto import tqdm
 
 from .gdf_utils import autodetect_name_col, count_points_in_each_region, read_geo_file_async
+
+logger = logging.getLogger(__name__)
 
 
 async def _read_json(path: Path):
@@ -93,6 +96,14 @@ async def get_stats(
 	raise ValueError(f'Unhandled stats type: {stats_type}')
 
 
+class NoCoordinatesError(ValueError):
+	"""Raised for a GeoGuessr map file not having coordinates (maybe a polygon map)."""
+
+	def __init__(self, path: Path, *args: object) -> None:
+		self.path = path
+		super().__init__(*args)
+
+
 async def _read_coords_from_file(file: Path):
 	map_data = await _read_json(file)
 	if isinstance(map_data, list):
@@ -102,7 +113,7 @@ async def _read_coords_from_file(file: Path):
 	else:
 		raise TypeError(f'Loading {file} as map failed, map_data is {type(map_data)}')
 	if not coords:
-		raise ValueError(f'{file} contains no coordinates')
+		raise NoCoordinatesError(file)
 	return coords
 
 
@@ -139,11 +150,15 @@ async def get_stats_for_files(
 	with tqdm(files, desc='Getting stats') as t:
 		for file in t:
 			t.set_postfix(file=file)
-			columns.append(
-				await get_stats_for_file(
+			try:
+				col = await get_stats_for_file(
 					file, stats_type, regions, regions_name_col, as_percentage=as_percentage
 				)
-			)
+			except NoCoordinatesError as ex:
+				logger.warning('%s did not contain coordinates, skipping', ex.path)
+				continue
+			else:
+				columns.append(col)
 	return pandas.DataFrame({col.name: col for col in columns}).fillna(0)
 
 
