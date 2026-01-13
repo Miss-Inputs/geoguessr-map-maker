@@ -57,6 +57,7 @@ async def generate_points(
 	panning: PanningModeType,
 	*,
 	ensure_n: bool,
+	use_extra: bool,
 ) -> Collection[Coordinate]:
 	async with aiohttp.ClientSession() as session:
 		if finder_type == 'lattice':
@@ -69,7 +70,9 @@ async def generate_points(
 			)
 		elif finder_type == 'points':
 			finder = PointFinder(session, max_connections, radius, options)
-		return await find_locations_in_geodataframe(finder, gdf, name_col, panning)
+		return await find_locations_in_geodataframe(
+			finder, gdf, name_col, panning, include_row_data=use_extra
+		)
 
 
 async def output_locations(locations: Collection[Coordinate], name: str, output_path: Path):
@@ -113,6 +116,7 @@ async def generate(
 	*,
 	as_region_map: bool = False,
 	ensure_n: bool = False,
+	use_extra: bool = True,
 ):
 	# TODO: Allow input_file to not actually be a filesystem path, because geopandas read_file can get URLs and that sort of thing
 	# TODO: Autodetect input_file_type, e.g. if zip (and contains stops.txt) then it should be GTFS
@@ -139,6 +143,7 @@ async def generate(
 			options,
 			panning,
 			ensure_n=ensure_n,
+			use_extra=use_extra,
 		)
 	elif input_file_type == InputFileType.GTFS:
 		locations = await generate_gtfs(input_file, radius, options)
@@ -270,6 +275,12 @@ def main():
 		choices=_panning_modes,
 		default='auto',
 	)
+	pano_group.add_argument(
+		'--extra',
+		action=BooleanOptionalAction,
+		default=True,
+		help='Add the extra field to each location in the map with data from each row. Defaults to true',
+	)
 
 	options_group = gen_parser.add_argument_group(
 		'Location options', 'What locations to allow/require/reject'
@@ -361,6 +372,7 @@ def main():
 					_panning_modes[args.panning],
 					as_region_map=args.region_map or False,
 					ensure_n=args.ensure_balance,
+					use_extra=args.extra,
 				)
 			)
 		elif args.subcommand == 'stats':
