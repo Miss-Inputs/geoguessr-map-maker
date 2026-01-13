@@ -425,15 +425,15 @@ class RandomFinder(PanoFinder):
 				leave=False,
 				unit='points',
 			) as t:
-				total_panos = []
-				while len(total_panos) < self.n:
+				panos_this_row = {}
+				while len(panos_this_row) < self.n:
 					tries += 1
 					t.set_postfix(tries=tries)
 					if self.max_retries and (tries > self.max_retries):
 						logger.info(
 							'Bailing out of %s, max tries reached and only found %d coords',
 							name or 'geometry',
-							len(total_panos),
+							len(panos_this_row),
 						)
 						break
 					try:
@@ -446,13 +446,13 @@ class RandomFinder(PanoFinder):
 						)
 						return
 					else:
-						panos = [
-							pano
+						panos = {
+							pano.pano.id: pano
 							async for pano in self.find_locations(points, name, disable_tqdm=True)
-						]
+						}
 						t.update(len(panos))
-						total_panos += panos
-				for pano in total_panos[: self.n]:
+						panos_this_row.update(panos)
+				for pano in list(panos_this_row.values())[: self.n]:
 					yield pano
 			return
 
